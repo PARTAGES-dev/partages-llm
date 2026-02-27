@@ -1,0 +1,278 @@
+import os
+import json
+import traceback
+from pathlib import Path
+from argparse import ArgumentParser
+from functools import partial
+from datetime import datetime
+
+from datasets import Dataset, DatasetDict, load_from_disk
+from transformers import AutoTokenizer
+
+from partages_llm.utils import basic_logger_init
+from partages_llm.processing import ValidationSplitConfig, get_tokenized_ds_features, generate_concatenated_tokenized_ds
+
+_DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
+_DS_CACHE =  _DATADIR_BASE / "hf-cache"
+_DATASET_TYPE2DIR = {
+    "original": "com",
+    "clean": "com-clean",
+    "both": "com-clean-dedup",
+    "mix": "mix"
+}
+_EXCLUDE_SOURCES = [
+    'WMT16'
+]
+
+
+def parse_arguments():
+    default_output_dir = str(_DATADIR_BASE / "tokens")
+    default_eval_set_config_path = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), os.pardir,
+        "configs/clm-corpus-processing/validation-set-config.json"
+    ))
+    parser = ArgumentParser()
+    parser.add_argument("tokenizer_name_or_path")
+    parser.add_argument("-v", "--dataset-version", type=int, default=0)
+    parser.add_argument("-t", "--dataset-type", choices=tuple(_DATASET_TYPE2DIR), default="original")
+    parser.add_argument("-l", "--model-max-length", type=int, default=2048)
+    parser.add_argument("-m", "--min-length", type=int, default=5)
+    parser.add_argument("-o", "--output-dir", default=default_output_dir)
+    parser.add_argument("-w", "--workers", type=int, default=16)
+    parser.add_argument("-p", "--pad-token", default="<pad>")
+    parser.add_argument("-b", "--bos-token")
+    parser.add_argument("-d", "--eval-set-config-path", type=Path, default=default_eval_set_config_path)
+    parser.add_argument("-f", "--overflow", action="store_true")
+    parser.add_argument("-C", "--concatenate", action="store_true")
+    parser.add_argument("-s", "--stride", type=int, default=4)
+    parser.add_argument("-r", "--use-research-version", action="store_true")
+    parser.add_argument("-c", "--cut-tokenizer-model-name", action="store_true")
+    return parser.parse_args()
+
+
+def filter_tokenized_ds(ds, min_length):
+    # pretty sure this is faster than Dataset.filter(lambda x: len(x["input_ids"]) > min_length)
+    df = ds.to_pandas()
+    token_counts = df.input_ids.apply(len)
+    df_filtered = df[token_counts > min_length]
+    return Dataset.from_pandas(df_filtered, preserve_index=False)
+
+
+def make_val_split(ds, config, logger=None):
+    if config is None:
+        return ds
+    logger.info("Creating validation split")
+    test_size = config.num_validation_docs if config.num_validation_docs else config.proportion
+    return ds.class_encode_column("source").train_test_split(
+        test_size=test_size,
+        stratify_by_column="source",
+        seed=config.seed
+    )
+
+
+def run_tokenization(
+    dataset_or_path,
+    tokenize_func,
+    overflow,
+    num_proc,
+    features,
+    min_length,
+    concatenate_generator_func,
+    write_dir,
+    logger=None
+):
+    disp = logger.info if logger else print
+    ds = dataset_or_path if isinstance(dataset_or_path, (Dataset, DatasetDict)) \
+        else load_from_disk(dataset_or_path)        
+    disp("Running tokenization")
+    remove_columns = ds.column_names
+    if isinstance(ds, DatasetDict):
+        remove_columns = remove_columns["train"]
+    tokenized_ds = ds.map(
+        partial(tokenize_func, overflow=overflow),
+        num_proc=num_proc,
+        remove_columns=remove_columns,
+        batched=True,
+        features=features,
+        desc="=>tokenizer=>"
+    )
+    disp("Removing sequences shorter than %d" % min_length)
+    if isinstance(tokenized_ds, Dataset):
+        tokenized_ds_filtered = filter_tokenized_ds(tokenized_ds, min_length)
+        disp(
+            "Done filtering: num_rows %d -> %d" % (
+                tokenized_ds.num_rows,
+                tokenized_ds_filtered.num_rows
+            )
+        )
+    else:
+        tokenized_ds_filtered = DatasetDict({
+            "train": filter_tokenized_ds(tokenized_ds["train"], min_length),
+            "val": filter_tokenized_ds(tokenized_ds["test"], min_length)
+        })
+        disp(
+            "Done filtering: num_rows train %d -> %d; num_rows val. %d -> %d" % (
+                tokenized_ds.num_rows["train"],
+                tokenized_ds_filtered.num_rows["train"],
+                tokenized_ds.num_rows["test"],
+                tokenized_ds_filtered.num_rows["val"],
+            )
+        )
+    if concatenate_generator_func:
+        disp("Building concatenated version...")
+        if isinstance(tokenized_ds_filtered, Dataset):
+            tokenized_ds_output = Dataset.from_generator(
+                partial(concatenate_generator_func, ds=tokenized_ds_filtered),
+                cache_dir=_DS_CACHE
+            )
+            disp(
+                "Done concatenation: num_rows %d -> %d" % (
+                    tokenized_ds_filtered.num_rows,
+                    tokenized_ds_output.num_rows
+                )
+            )
+        else:
+            tokenized_ds_output = DatasetDict({
+                "train": Dataset.from_generator(
+                    partial(
+                        concatenate_generator_func, ds=tokenized_ds_filtered["train"]
+                    ), cache_dir=_DS_CACHE
+                ),
+                "val": Dataset.from_generator(
+                    partial(
+                        concatenate_generator_func, ds=tokenized_ds_filtered["val"]
+                    ), cache_dir=_DS_CACHE
+                )
+            })
+            disp(
+            "Done concatenation: num_rows train %d -> %d; num_rows val. %d -> %d" % (
+                tokenized_ds_filtered.num_rows["train"],
+                tokenized_ds_output.num_rows["train"],
+                tokenized_ds_filtered.num_rows["val"],
+                tokenized_ds_output.num_rows["val"],
+            )
+        )
+    else:
+        tokenized_ds_output = tokenized_ds_filtered
+    write_dir.mkdir(parents=True, exist_ok=True)
+    disp("Writing tokenized dataset to disk @ %s" % write_dir)
+    tokenized_ds_output.save_to_disk(write_dir)
+
+
+def build_tokenized_dataset(args, logger):
+    ### general args/metadata setup
+    arg_dict = vars(args)
+    if args.eval_set_config_path:
+        with open(args.eval_set_config_path) as f:
+            validation_split_config_dict = json.load(f)
+        arg_dict["validation_split_config"] = validation_split_config_dict
+        validation_split_config = ValidationSplitConfig(**validation_split_config_dict)
+    else:
+        validation_split_config = None
+    arg_str = "\n\t\t".join(f"{k}: {v}" for k, v in arg_dict.items())
+    output_dir = Path(args.output_dir)
+    
+    ### tokenizer functionality
+    logger.info("TOKENIZATION RUN\n\tParameters:\n\t\t%s", arg_str)
+    assert output_dir.exists(), f"{output_dir} isn't a valid directory path"
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.tokenizer_name_or_path, model_max_length=args.model_max_length,
+    )
+    if tokenizer.pad_token_id is None:
+        tokenizer.add_special_tokens({"pad_token": args.pad_token})
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+    if tokenizer.bos_token_id is None and args.bos_token is not None:
+        tokenizer.add_special_tokens({"bos_token": args.bos_token})
+    logger.info("Loaded tokenizer: %s", type(tokenizer).__name__)
+    def _tknz_func(instance, overflow):
+        batch_encoding = tokenizer(
+            instance["text"],
+            padding=False,
+            add_special_tokens=True,
+            truncation=True,
+            max_length=args.model_max_length,
+            return_tensors="np",
+            return_special_tokens_mask=True,
+            return_overflowing_tokens=overflow,
+            stride=args.stride
+        )
+        if overflow:
+            del batch_encoding["overflow_to_sample_mapping"]
+        return batch_encoding
+    
+    ### input
+    dataset_type = _DATASET_TYPE2DIR[args.dataset_type]
+    if args.use_research_version:
+        dataset_type = dataset_type.replace("com", "research")
+    data_dir = _DATADIR_BASE / f"wp2-corpus/{dataset_type}/v{args.dataset_version}"
+    logger.info("Loading from %s", data_dir)
+    ds = load_from_disk(data_dir)
+    if _EXCLUDE_SOURCES:
+        logger.info("Removing sources: %s", ", ".join(_EXCLUDE_SOURCES))
+        num_docs_init = ds.num_rows
+        ds = ds.filter(
+            lambda instance: instance["source"] not in _EXCLUDE_SOURCES,
+            num_proc=args.workers
+        )
+        logger.info("Done; num_rows %d -> %d", num_docs_init, ds.num_rows)
+    tokenized_ds_features = get_tokenized_ds_features()
+    ds = make_val_split(ds, validation_split_config, logger)
+    concatenate_generator_func = partial(
+        generate_concatenated_tokenized_ds,
+        sequence_length=args.model_max_length,
+        bos_token_id=tokenizer.bos_token_id,
+        space_id=tokenizer.encode(" ")[-1],
+        stride=args.stride,
+        minimum_remainder=args.min_length,
+        return_remainder=False,
+        verbose=True
+    ) if args.concatenate else None
+    
+    ### output naming setup
+    tokenized_ds_name_base = Path(args.tokenizer_name_or_path).name
+    if args.cut_tokenizer_model_name:
+        tokenized_ds_name_base = tokenized_ds_name_base.split("-")[0]
+    tokenized_ds_name = tokenized_ds_name_base + \
+        f"_wp2-{dataset_type}-v{args.dataset_version}-"
+    if args.concatenate:
+        tokenized_ds_name += "cc-"
+    tokenized_ds_name += str(args.model_max_length)
+    if args.overflow:
+        tokenized_ds_name += f"-ovf{args.stride}"
+    tokenized_ds_dir = output_dir / tokenized_ds_name
+    
+    ### let's go
+    run_tokenization(
+        ds,
+        _tknz_func,
+        args.overflow,
+        args.workers,
+        tokenized_ds_features,
+        args.min_length,
+        concatenate_generator_func,
+        tokenized_ds_dir,
+        logger
+    )
+
+    ### wrapping up
+    arg_dict["script"] = __file__
+    arg_dict["run_finished_at"] = datetime.now().ctime()
+    arg_dict["eval_set_config_path"] = str(arg_dict["eval_set_config_path"])  # pathlib.Path can't be serialized to JSON
+    with (tokenized_ds_dir / "script_params.json").open("w") as f:
+        json.dump(arg_dict, f, indent=4)
+    logger.info("Finished\n%s", "=" * 50)
+
+
+def main():
+    logger = basic_logger_init()
+    args = parse_arguments()
+    try:
+        build_tokenized_dataset(args, logger)
+    except Exception:
+        traceback.print_exc()
+        logger.error("Script failed due to above exception")
+
+
+if __name__ == "__main__":
+    main()
+
