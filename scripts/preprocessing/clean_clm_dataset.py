@@ -10,7 +10,7 @@ from datasets import load_from_disk
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 from partages_llm.processing import clean_text
 
-_DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 
 
 def parse_arguments():
@@ -26,7 +26,7 @@ def main():
     args = parse_arguments()
     logger = basic_logger_init()
     dataset_type = "research" if args.use_research_version else "com"
-    data_dir = _DATADIR_BASE / f"wp2-corpus/{dataset_type}/v{args.dataset_version}"
+    data_dir = Path(_DATADIR_BASE) / f"wp2-corpus/{dataset_type}/v{args.dataset_version}"
     data_path = data_dir / "train"
     if not data_path.exists():
         data_path = data_dir

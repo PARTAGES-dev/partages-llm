@@ -1,5 +1,4 @@
 import os
-import multiprocessing as mp
 from pathlib import Path
 from argparse import ArgumentParser
 
@@ -7,7 +6,7 @@ from datasets import Features, load_dataset
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
-_DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 _DS_CACHE =  _DATADIR_BASE / "hf-cache"
 
 

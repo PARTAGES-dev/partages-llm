@@ -5,11 +5,11 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 import pandas as pd
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
-_DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 _DATASET_DIR = _DATADIR_BASE / "wp2-instructions"
 
 
