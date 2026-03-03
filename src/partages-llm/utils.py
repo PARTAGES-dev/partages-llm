@@ -3,15 +3,13 @@ import sys
 import inspect
 import logging
 import importlib.util
-from typing import Callable, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 from pathlib import Path
 from contextlib import contextmanager
-from datetime import datetime
 from functools import wraps
 from inspect import signature
-from itertools import groupby
 
-_DATADIR = Path(__file__).parents[3] / "data"
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 
 
 class Bunch:
@@ -123,18 +121,17 @@ def get_named_entities(text: List[str], tags: List[int]):
     return result
 
 
-def sanitize_path(path: Any, default: str, check_is_dir: bool = False):
+def sanitize_path(path: Any, default_name: str, check_is_dir: bool = False):
     if not isinstance(path, Path):
         try:
             spath = Path(path)
         except TypeError:
-            spath = _DATADIR / default
+            spath = _DATADIR_BASE / default_name
         else:
             existence = spath.is_dir() if check_is_dir else spath.is_file()
             if not existence:
-                spath = _DATADIR / default
+                spath = _DATADIR_BASE / default_name
     return spath
-
 
 
 def handle_input_paths(
@@ -147,12 +144,11 @@ def handle_input_paths(
             sig = signature(func)
             bound_args = sig.bind(*args, **kwargs)  # puts the values provided to `wrapper` into the signature of `func`
             bound_args.apply_defaults()  # fills in the default values for `func` arguments that were not provided to `wrapper`
-            bound_args.arguments["input_path"] = _sanitize_path(
+            bound_args.arguments["input_path"] = sanitize_path(
                 bound_args.arguments["input_path"], input_default
             )
-            bound_args.arguments["output_path"] = _sanitize_path(
-                bound_args.arguments["output_path"], output_default,
-                check_is_dir=True
+            bound_args.arguments["output_path"] = sanitize_path(
+                bound_args.arguments["output_path"], output_default, check_is_dir=True
             )
             return func(*bound_args.args, **bound_args.kwargs)
         return wrapper
