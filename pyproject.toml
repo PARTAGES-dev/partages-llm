@@ -7,7 +7,7 @@ name = "partages_llm"
 version = "0.1.0"
 description = "A short description"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
     { name = "Aidan Mannion", email = "aidan.mannion@univ-grenoble-alpes.fr" }
