@@ -1,0 +1,171 @@
+
+general_en:
+  - task: truthfulqa_gen
+  - task: piqa
+  - task: sciq
+  - task: arc_challenge
+  - task: arc_challenge_chat
+  - task: arc_easy
+  - task: winogrande
+general_x_en:
+  - task: belebele_eng_Latn
+  - task: paws_en
+  - task: xwinograd_en
+general_x_fr:
+  - task: belebele_fra_Latn
+  - task: paws_fr
+  - task: xwinograd_fr
+general_fr:
+  - task: truthfulqa_fr_mc1
+  - task: include_base_44_french
+mgsm_x:
+  - task: mgsm_direct_fr
+  - task: mgsm_direct_en
+french_bench:
+  - task: french_bench_fquadv2_genq
+  - task: french_bench_fquadv2_hasAns
+  - task: french_bench_multifquad
+french_bench2:
+  - task: french_bench_orangesum_abstract
+  - task: french_bench_orangesum_title
+  - task: french_bench_trivia
+french_bench3:
+  - task: french_bench_boolqa
+  - task: french_bench_grammar
+  - task: french_bench_reading_comp
+french_bench4:
+  - task: french_bench_topic_based_nli
+  - task: french_bench_vocab
+  - task: french_bench_xnli
+french_bench_arc:
+  - task: french_bench_arc_challenge
+maths_en:
+  - task: mathqa
+  - task: gsm8k
+global_mmlu_en:
+  - task: global_mmlu_en_business
+  - task: global_mmlu_en_humanities
+  - task: global_mmlu_en_other
+  - task: global_mmlu_en_social_sciences
+  - task: global_mmlu_en_stem
+mmlu_pro_bio:
+  - task: mmlu_pro_biology
+mmlu_pro_bus:
+  - task: mmlu_pro_business
+mmlu_pro_cs:
+  - task: mmlu_pro_computer_science
+mmlu_pro_econ:
+  - task: mmlu_pro_economics
+mmlu_pro_eng:
+  - task: mmlu_pro_engineering
+mmlu_pro_hist:
+  - task: mmlu_pro_history
+mmlu_pro_law:
+  - task: mmlu_pro_law
+mmlu_pro_math:
+  - task: mmlu_pro_math
+mmlu_pro_chem:
+  - task: mmlu_pro_chemistry
+mmlu_pro_phys:
+  - task: mmlu_pro_physics
+mmlu_pro_psy:
+  - task: mmlu_pro_psychology
+mmlu_pro_philo:
+  - task: mmlu_pro_philosophy
+mmlu_pro_other:
+  - task: mmlu_pro_other
+mmlu_prox_en_bio:
+  - task: mmlu_prox_en_biology
+mmlu_prox_en_bus:
+  - task: mmlu_prox_en_business
+mmlu_prox_en_chem:
+  - task: mmlu_prox_en_chemistry
+mmlu_prox_en_cs:
+  - task: mmlu_prox_en_computer_science
+mmlu_prox_en_econ:
+  - task: mmlu_prox_en_economics
+mmlu_prox_en_eng:
+  - task: mmlu_prox_en_engineering
+mmlu_prox_en_hist:
+  - task: mmlu_prox_en_history
+mmlu_prox_en_other:
+  - task: mmlu_prox_en_other
+mmlu_prox_en_math:
+  - task: mmlu_prox_en_math
+mmlu_prox_en_philo:
+  - task: mmlu_prox_en_philosophy
+mmlu_prox_en_phys:
+  - task: mmlu_prox_en_physics
+mmlu_prox_en_law:
+  - task: mmlu_prox_en_law
+mmlu_prox_en_psy:
+  - task: mmlu_prox_en_psychology
+global_mmlu_fr:
+  - task: global_mmlu_fr_business
+  - task: global_mmlu_fr_humanities
+  - task: global_mmlu_fr_other
+  - task: global_mmlu_fr_social_sciences
+  - task: global_mmlu_fr_stem
+mmlu_prox_fr_bio:
+  - task: mmlu_prox_fr_biology
+mmlu_prox_fr_bus:
+  - task: mmlu_prox_fr_business
+mmlu_prox_fr_chem:
+  - task: mmlu_prox_fr_chemistry
+mmlu_prox_fr_cs:
+  - task: mmlu_prox_fr_computer_science
+mmlu_prox_fr_econ:
+  - task: mmlu_prox_fr_economics
+mmlu_prox_fr_eng:
+  - task: mmlu_prox_fr_engineering
+mmlu_prox_fr_hist:
+  - task: mmlu_prox_fr_history
+mmlu_prox_fr_law:
+  - task: mmlu_prox_fr_law
+mmlu_prox_fr_math:
+  - task: mmlu_prox_fr_math
+mmlu_prox_fr_philo:
+  - task: mmlu_prox_fr_philosophy
+mmlu_prox_fr_phys:
+  - task: mmlu_prox_fr_physics
+mmlu_prox_fr_psy:
+  - task: mmlu_prox_fr_psychology
+mmlu_prox_fr_other:
+  - task: mmlu_prox_fr_other
+medical_en:
+  - task: pubmedqa
+  - task: medqa_4options
+medmcqa:
+  - task: medmcqa
+med_mmlu_en:
+  - task: mmlu_anatomy
+  - task: mmlu_clinical_knowledge
+  - task: mmlu_college_biology
+  - task: mmlu_college_medicine
+  - task: mmlu_medical_genetics
+  - task: mmlu_professional_medicine
+mmlu_prox_en_health:
+  - task: mmlu_prox_en_health
+medical_fr:
+  - task: medqafr
+  - task: medqafr5
+  - task: pubmedqafr
+med_glianorex:
+  - task: glianorex_en
+  - task: glianorex_fr
+med_global_mmlu:
+  - task: global_mmlu_en_medical
+  - task: global_mmlu_fr_medical
+med_mmlu_fr: 
+  - task: mmlu_med_fr_anatomy
+  - task: mmlu_med_fr_clinical_knowledge
+  - task: mmlu_med_fr_college_biology
+  - task: mmlu_med_fr_college_medicine
+  - task: mmlu_med_fr_medical_genetics
+  - task: mmlu_med_fr_professional_medicine
+mmlu_prox_fr_health:
+  - task: mmlu_prox_fr_health
+med_fr_clf:
+  - task: bio_instruct_qa_fr
+  - task: clister
+  - task: e3c-ner

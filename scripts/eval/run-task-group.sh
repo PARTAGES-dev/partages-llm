@@ -13,7 +13,7 @@ LIB=$5
 MAX_GEN_TOKS=${6:-2048}
 
 ENV_BIN="$WORK/miniconda3/envs/partages-dev/bin"
-TASK_GROUP_FILE="$WORK/partages-data/cfg/lm-eval/task-groups-flat.yaml"
+TASK_GROUP_FILE="$(dirname $0)/../../configs/lm-eval/task-groups-flat.yaml"
 YQ_CMD="$ENV_BIN/yq eval .$TASK_GROUP $TASK_GROUP_FILE"
 echo "Retrieving task names: $YQ_CMD"
 YAML_TASKS=$($YQ_CMD)
