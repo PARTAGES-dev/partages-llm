@@ -98,11 +98,11 @@ def gather_lm_eval_results_by_domain(
     input_dir: Union[str, List[str]],
     output_dir: str,
     recursive: bool = False,
-    output_name: Optional[str] = None,
+    output_name: Optional[str] = None,  # TODO: get rid - return dataframe and have script/user write to disk if they want
     completion_stats_config: Optional[Union[str, Dict[str, Union[List[str], bool]]]] = None,  # TODO: get rid of this
     task_group_ref_path: Optional[str] = None,
     base_model_name_only: bool = False,
-    # existing_results: Optional[pd.DataFrame] = None,
+    existing_results: Optional[pd.DataFrame] = None,
     verbose: bool = False
 ) -> type(None):
     output_path = Path(output_dir)
@@ -122,11 +122,11 @@ def gather_lm_eval_results_by_domain(
                 )
     if verbose: print("All results gathered: %d" % len(all_results))
     rows = []
-    # if existing_results is None:
-    #     existing_results = {"task": [], "model": []}  # TODO: make this a Bunch; for now, I'm avoiding cross-imports between different lib packages
+    if existing_results is None:
+        existing_results = {"task": [], "model": []}  # TODO: make this a Bunch; for now, I'm avoiding cross-imports between different lib packages
     for result in all_results:
-        # if result["task"] in existing_results["task"] and result["model"] in existing_results["model"]:
-        #     continue
+        if result["task"] in existing_results["task"] and result["model"] in existing_results["model"]:
+            continue
         metrics = result["metrics+agg"]
         scores = result["scores"]
         for (metric, agg), (score, std) in zip(metrics, scores):
@@ -176,8 +176,8 @@ def gather_lm_eval_results_by_domain(
     if not output_name:
         output_name = "eval_results_" + datetime.now().strftime("%y-%m-%d-%H-%M")
     write_path = output_path / (output_name + ".tsv")
-    # if isinstance(existing_results, pd.DataFrame):
-    #     df = pd.concat((existing_results, df))
+    if isinstance(existing_results, pd.DataFrame):
+        df = pd.concat((existing_results, df), ignore_index=True)
     df.to_csv(write_path, index=False, encoding="utf-8", sep="\t")
     if verbose: print("\nOutput written to %s" %  write_path)
 
