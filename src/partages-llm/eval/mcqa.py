@@ -71,6 +71,7 @@ def mcqa(
                 print(f"DOC : {id_} ({batch_idx + i}/{total_docs})")
                 print("GEN :", answer)
                 print("ANSWER :", answer_clean + "\n")
+                input("Press Enter to continue")
             target = label[0]["content"].strip("\n")
             y_set = set(target.split(","))
             if answer_clean:
