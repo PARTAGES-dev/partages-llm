@@ -276,17 +276,18 @@ def run_training(train_args, train_ds, eval_ds):
         else:
             train_result = trainer.train()
     except Exception:
-        logger.error("TRAINER FAILED @ PROCESS %d", _get_rank())  # just so there'll be a timestamp in the stdout for when a process fails
+        rank = _get_rank()
+        logger.error("TRAINER FAILED @ PROCESS %d", rank)  # just so there'll be a timestamp in the stdout for when a process fails
         tb = traceback.format_exc()
-        print(tb.replace("\n", f"\n[rank{_get_rank()}] "), file=sys.stderr)
+        print(tb.replace("\n", f"\n[rank{rank}] "), file=sys.stderr)
         torch.distributed.destroy_process_group()
-        sys.exit(1)
+        return
 
     metrics = train_result.metrics
     trainer.log_metrics("train", metrics)
     trainer.save_metrics("train", metrics)
     trainer.save_model(trainer.args.output_dir)
-    logger.info("Done! Output @ %s\n%s", trainer.args.output_dir, "=" * 50)
+    logger.info("Done! Output @ %s\n%s", trainer.args.output_dir, "=" * 75)
 
 
 def main():
