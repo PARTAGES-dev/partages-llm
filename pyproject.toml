@@ -13,7 +13,19 @@ authors = [
     { name = "Aidan Mannion", email = "aidan.mannion@univ-grenoble-alpes.fr" }
 ]
 dependencies = [
-    "",
+    "accelerate==1.6.0",
+    "numpy",
+    "torch>=2.9.1",
+    "datasets>=4.4.1",
+    "jinja2",
+    "pandas>=2.0.0",
+    "transformers>=4.57.1",
+    "peft>=0.17.1",
+    "hdbscan",
+    "umap-learn>=0.5",
+    "sentence-transformers>=5.1.2",
+    "scikit-learn==1.6.1",
+    "stop-words==2025.11.4"
 ]
 
 [project.optional-dependencies]
