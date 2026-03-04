@@ -1,4 +1,3 @@
-import os
 import json
 from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -19,7 +18,6 @@ from partages_llm.utils import basic_logger_init
 
 
 def parse_arguments():
-    default_output_dir = os.path.join(os.getenv("HOME"), "partages-models/sts-encoders")
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_id", type=str)
     parser.add_argument("data_path", type=str)
@@ -28,18 +26,19 @@ def parse_arguments():
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output_dir", type=str, default=default_output_dir)
-    parser.add_argument("--eval", action="store_true")
-    parser.add_argument("--nosave", action="store_true")
+    parser.add_argument("--output_dir", type=str)
+    parser.add_argument("--skip-eval", action="store_true")
+    parser.add_argument("--retrain", action="store_true")
     return parser.parse_args()
 
 
-def build_dataloader(df: pd.DataFrame, batch_size: int):
-    dataset_list = list(
+def build_train_dataloader(df: pd.DataFrame, batch_size: int):
+    dataset_list = [
         InputExample(
-            texts=[t.id_1, t.id_2], label=(t.sim / 5)
-        ) for t in df.itertuples()
-    )
+            texts=[t.id_1, t.id_2],  # pair of input sentences
+            label=(t.sim / 5)  # similarity score: originally in [0-5]; map to (0,1) for evaluation
+        ) for t in df.itertuples()  # iterates over the rows of the dataset
+    ]
     return DataLoader(dataset_list, batch_size=batch_size, shuffle=True)
 
 
@@ -51,37 +50,45 @@ def train_sts(
     lr: float,
     output_path: Optional[str] = None
 ):
+    # first we load the underlying transformer encoder
     transformer = Transformer(model_id, max_seq_length=seq_len)
     model_input_names = ["input_ids", "attention_mask"]
     setattr(transformer.tokenizer, "model_input_names", model_input_names)
+    
+    # to fine-tune the above word-embedding model as a sentence transformer,
+    # we add a pooling module
     pooling_layer = Pooling(
         transformer.get_word_embedding_dimension(),
         pooling_mode_mean_tokens=True
     )
     st_modules = transformer, pooling_layer
     model = SentenceTransformer(modules=st_modules)
+    
+    # organize training parameters and launch
     loss = CosineSimilarityLoss(model=model)
+    train_objectives = [(data_loader, loss)]
+    optimizer_params = {"lr": lr}
     model.fit(
-        train_objectives=[(data_loader, loss)],
-        epochs=epochs,
-        scheduler="constantlr",
-        optimizer_params={"lr": lr},
-        weight_decay=.01,
-        show_progress_bar=True,
+        train_objectives=train_objectives,
+        optimizer_params=optimizer_params,
         output_path=output_path,
+        scheduler="constantlr",
+        show_progress_bar=True,
+        weight_decay=.01,
+        epochs=epochs,
     )
     return model
 
 
 def main():
+
+    ## VARS SETUP ##
     args = parse_arguments()
     logger = basic_logger_init()
-
-    logger.info("Loading dataset: %s", args.data_path)
-    df = pd.read_csv(args.data_path, sep="\t")
-    train_df = df[df.split == "train"]
-    
-    if not args.nosave:
+    manual_seed(args.seed)
+    if args.output_dir is None:
+        output_dir_path = "n/a"
+    else:
         output_dir_name = Path(args.model_id).name + "_clister_" + datetime.now().strftime("%d-%m_%H-%M")
         output_dir_path = Path(args.output_dir) / output_dir_name
         output_dir_path.mkdir(parents=True)
@@ -89,48 +96,55 @@ def main():
         script_params["file"] = __file__
         with (output_dir_path / "train_script_params.json").open("w") as f:
             json.dump(script_params, f, indent=4)
-    else:
-        output_dir_path = "n/a"
+    output_path = str(output_dir_path) if (args.skip_eval or not args.retrain) else None
 
-    manual_seed(args.seed)
-    logger.info("Loading + launching model: %s", args.model_id)
-    data_loader = build_dataloader(train_df, args.batch_size)
-    output_path = None if (args.eval | args.nosave) else str(output_dir_path)
+    ## INPUT DATA ##
+    logger.info("Loading dataset: %s", args.data_path)
+    df = pd.read_csv(args.data_path, sep="\t")
+    train_df = df[df.split == "train"]
+    data_loader = build_train_dataloader(train_df, args.batch_size)
+    
+    ## RUN TRAININING ##
+    logger.info("Loading + launching model: %s", args.model_id) 
     model = train_sts(
+        data_loader=data_loader,
+        output_path=output_path,
         model_id=args.model_id,
         seq_len=args.seq_len,
-        data_loader=data_loader,
         epochs=args.epochs,
         lr=args.lr,
-        output_path=output_path
     )
-    if args.eval:
+
+    if not args.skip_eval:
+        ## EVAL ##
         logger.info("Evaluating")
         eval_dataset = df[df.split == "test"].reset_index()
-        cosine_similarities = np.fromiter(
-            (cos_sim(*embeddings).item() for embeddings in zip(
-                *map(
-                    lambda x: model.encode(eval_dataset["id_" + str(x + 1)]),
-                    range(2)
-                )
-            )),
-            dtype=np.float64
-        )
+        
+        # this function embeds the sentence pairs id_1 and id_2 
+        data_to_embedding_map = map(lambda x: model.encode(eval_dataset["id_" + str(x + 1)]), range(2))
+
+        # calculate the cosine similarity for each pair
+        embedding_pairs_to_similarities_iter = (cos_sim(*embeddings).item() for embeddings in zip(*data_to_embedding_map))
+        cosine_similarities = np.fromiter(embedding_pairs_to_similarities_iter, dtype=np.float64)
+        
+        # compare the ground-truth similarities ("sim" attribute of the dataset) to the calculated ones
         result = spearmanr(eval_dataset.sim, cosine_similarities)
         logger.info("Spearman correlation for test data: %.5f", result.statistic)
-        if not args.nosave:
+        
+        if args.retrain:
             logger.info("Retraining on all data")
-            data_loader = build_dataloader(df, args.batch_size)
+            data_loader = build_train_dataloader(df, args.batch_size)
             output_path = str(output_dir_path)
             _ = train_sts(
+                data_loader=data_loader,
+                output_path=output_path,
                 model_id=args.model_id,
                 seq_len=args.seq_len,
-                data_loader=data_loader,
                 epochs=args.epochs,
                 lr=args.lr,
-                output_path=output_path
             )
-    logger.info("Done: output @ %s", output_dir_path)
+    
+    logger.info("Done: output @ %s\n%s", output_dir_path, "=" * 75)
 
 
 if __name__ == "__main__":

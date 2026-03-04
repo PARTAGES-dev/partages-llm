@@ -5,6 +5,7 @@ import warnings
 import traceback
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
+from typing import Any, Dict, Union
 from datetime import datetime
 from uuid import uuid4
 from itertools import product
@@ -79,12 +80,32 @@ def _load_model(model_path, pad_token=None):
     return base_model, tokenizer
 
 
-def run_training(
+def _load_datasets():
+    ds_dir = Path(args.ds_dir) / ("v" + str(args.dataset_version))
+    assert ds_dir.exists(), f"{ds_dir} not found"
+    if args.dataset_name:
+        ds = datasets.load_from_disk(ds_dir / args.dataset_name)
+        train_ds = ds["train"]
+        eval_ds = ds["validation"]
+    else:
+        ds_load_dict = {fp.name: datasets.load_from_disk(fp) for fp in ds_dir.glob("*/")}
+        assert set(ds_load_dict) == set(_DATASET_NAMES), f"Unexpected dataset name found in {list(ds_load_dict)}"
+        train_ds = datasets.concatenate_datasets(
+            [ds_["train"] for ds_ in ds_load_dict.values()]
+        ).shuffle(seed=args.seed)
+        eval_ds = datasets.DatasetDict({
+            name: ds_["validation"] for name, ds_ in ds_load_dict.items()
+        })
+    if args.ndocs:
+        train_ds = train_ds.shuffle(seed=args.seed).take(args.ndocs)
+    logger.info("Train dataset loaded: %s", repr(train_ds))
+    return train_ds, eval_ds
+
+
+def _run_training(
     model,
     tokenizer,
     train_ds,
-    args,
-    logger,
     eval_ds=None,
     output_dir=None,
     logging_dir=None,
@@ -118,7 +139,7 @@ def run_training(
     if output_dir is None:
         model_basename = Path(args.model_path).name
         timestamp = datetime.now().strftime("%y-%m-%d_%H-%M")
-        run_id = uuid4().hex  # to be replaced by slurm id on jz
+        run_id = os.environ.get("SLURM_JOB_ID", uuid4().hex)
         output_basename = f"{model_basename}_sft_{timestamp}-{run_id}"
         output_dir = Path(args.output_dir) / output_basename
         output_dir.mkdir(parents=True)
@@ -172,7 +193,65 @@ def run_training(
     return trainer
 
 
+def _run_hps_iter(
+    iter_idx: int,
+    output_dir_path: Path,
+    hp_kwargs: Dict[str, Any],
+    ds: datasets.Dataset,
+    bs_adjustments: int,
+) -> Union[SFTTrainer, int, type(None)]:
+    """
+    Wraps `_run_training` with some extra stuff for managing multiple runs where different parameter
+    combinations are being tested.
+
+    Returns:
+        The Trainer object for the run, if it succeeds. If interactive batch size adjustment mode is
+        switched on and training fails because of an OOM error, the function will return a counter for
+        the number of adjustments made to the batch size during this run
+    """
+    run_subdir_path = output_dir_path / f"run{iter_idx}-logs"
+    hp_kwargs_disp = ", ".join(f"{k}={v}" for k, v in hp_kwargs.items())
+    logger.info("Setting variable hyperparameters for run %d: %s", iter_idx, hp_kwargs_disp)
+    args.__dict__.update(hp_kwargs)
+    base_model, tokenizer = _load_model(args.model_path, args.pad_token)
+    try:
+        trainer = _run_training(
+            model=base_model,
+            tokenizer=tokenizer,
+            train_ds=ds["train"],
+            eval_ds=ds["test"],
+            logging_dir=run_subdir_path,
+            output_dir=run_subdir_path,
+            save_strategy="no",
+        )
+    except Exception as exc:
+        if isinstance(exc, torch.OutOfMemoryError) and args.interactive_bs:
+            # command line input parsing to set a new batch size
+            cl_in_t = input("\n\n** CUDA OOM ** Batch size to modify [t/e]: ")  # choose train_batch_size or eval_batch_size
+            new_batch_size_type = cl_in_t.strip()
+            arg_to_update = f"{'train' if new_batch_size_type == 't' else 'eval'}_batch_size"
+            cl_in_v = input("New smaller batch size: ")
+            new_batch_size = int(cl_in_v.strip())
+            setattr(args, arg_to_update, new_batch_size)
+            if new_batch_size <= 0:
+                logger.error("Invalid value for new batch size")
+                raise exc
+
+            ## memory cleanup ##
+            torch.cuda.empty_cache()
+            gc.collect()
+
+            return bs_adjustments + 1  # does not retry iteration
+        traceback.print_exc()
+        logger.error("Training failed, saving current hyperparameter search results + quitting [=> %s]", output_dir_path)
+        return
+    return trainer
+
+
 def main():
+
+    ## VARS SETUP ##
+    global args, logger
     args = parse_arguments()
     if args.eval_batch_size is None:
         setattr(args, "eval_batch_size", args.train_batch_size)
@@ -182,7 +261,6 @@ def main():
     logger = basic_logger_init(args.log_level)
     set_seed(args.seed)
     warnings.simplefilter("ignore", UserWarning)
-
     arg_dict = vars(args)
     nt = "\n" + "\t" * 3
     if args.hps_cfg:
@@ -195,27 +273,12 @@ def main():
     logger.info("Parameters:%s%s", nt, arg_str)
     logger.info("Num. GPUs: %d", torch.cuda.device_count())
     
-    ds_dir = Path(args.ds_dir) / ("v" + str(args.dataset_version))
-    assert ds_dir.exists(), f"{ds_dir} not found"
-    if args.dataset_name:
-        ds = datasets.load_from_disk(ds_dir / args.dataset_name)
-        train_ds = ds["train"]
-        eval_ds = ds["validation"]
-    else:
-        ds_load_dict = {fp.name: datasets.load_from_disk(fp) for fp in ds_dir.glob("*/")}
-        assert set(ds_load_dict) == set(_DATASET_NAMES), f"Unexpected dataset name found in {list(ds_load_dict)}"
-        train_ds = datasets.concatenate_datasets(
-            [ds_["train"] for ds_ in ds_load_dict.values()]
-        ).shuffle(seed=args.seed)
-        eval_ds = datasets.DatasetDict({
-            name: ds_["validation"] for name, ds_ in ds_load_dict.items()
-        })
-    if args.ndocs:
-        train_ds = train_ds.shuffle(seed=args.seed).take(args.ndocs)
-    logger.info("Train dataset loaded: %s", repr(train_ds))
+    ## INPUT DATA ##
+    train_ds, eval_ds = _load_datasets()
         
     if args.hps_cfg:
-        # Hyperparameter search
+        
+        ## HYPERPARAMETER SEARCH SETUP ##
         hps_output_basename = f"gs_{Path(args.model_path).name}_" + datetime.now().strftime("%y-%m-%d_%H-%M")
         output_dir_path = Path(args.output_dir) / hps_output_basename
         output_dir_path.mkdir()
@@ -227,52 +290,24 @@ def main():
         logger.info("* HPS dataset *\n%s", repr(dev_split_ds))
         bs_adjustments = 0
         intermediate_txt_file_path = output_dir_path / "hps-results-intermediate.txt"
+        
         for i, value_combination in enumerate(product(*hpsc_processed.values())):
             if (i - bs_adjustments) == args.max_hps_iter:
                 logger.warning("Reached iteration limit of %d; stopping", args.max_hps_iter)
                 break
-            run_subdir_path = output_dir_path / f"run{i + 1}-logs"
+            
             hp_kwargs = dict(zip(hpsc_processed, value_combination))
-            hp_kwargs_disp = ", ".join(f"{k}={v}" for k, v in hp_kwargs.items())
-            logger.info("Setting variable hyperparameters for run %d: %s", i + 1, hp_kwargs_disp)
-            args.__dict__.update(hp_kwargs)
-            base_model, tokenizer = _load_model(args.model_path, args.pad_token)
-            try:
-                trainer = run_training(
-                    args=args,
-                    model=base_model,
-                    tokenizer=tokenizer,
-                    train_ds=dev_split_ds["train"],
-                    eval_ds=dev_split_ds["test"],
-                    logging_dir=run_subdir_path,
-                    output_dir=run_subdir_path,
-                    save_strategy="no",
-                    logger=logger
-                )
-            except Exception as exc:
-                if isinstance(exc, torch.OutOfMemoryError) and args.interactive_bs:
-                    cl_in_t = input("\n\n** CUDA OOM ** Batch size to modify [t/e]: ")
-                    new_batch_size_type = cl_in_t.strip()
-                    arg_to_update = f"{'train' if new_batch_size_type == 't' else 'eval'}_batch_size"
-                    cl_in_v = input("New smaller batch size: ")
-                    new_batch_size = int(cl_in_v.strip())
-                    setattr(args, arg_to_update, new_batch_size)
-                    if new_batch_size <= 0:
-                        logger.error("Invalid value for new batch size")
-                        raise exc
-                    torch.cuda.empty_cache()
-                    gc.collect()                    
-                    bs_adjustments += 1
-                    continue  # does not retry iteration
-                traceback.print_exc()
-                logger.error("Training failed, saving current HP results + quitting [=> %s]", output_dir_path)
+            trainer = _run_hps_iter(i + 1, output_dir_path, hp_kwargs, dev_split_ds, bs_adjustments)
+            if isinstance(trainer, int):
+                continue
+            elif trainer is None:
                 with (output_dir_path / "hps-results.jsonl").open("w") as f:
                     json.dump(hps_results, f, indent=4)
                 exit(1)
             trainer_metrics = trainer.evaluate()
             eval_metrics = mcqa(
                 model=trainer.model.merge_and_unload().eval(),
-                tokenizer=tokenizer,
+                tokenizer=trainer.tokenizer,
                 dataset=trainer.eval_dataset,
                 batch_size=args.eval_batch_size,
                 max_new_tokens=64,
@@ -282,7 +317,7 @@ def main():
                 "iter": i,
                 "params": hp_kwargs,
                 "trainer_metrics": trainer_metrics,
-                "trainer_logs_in": run_subdir_path.name,
+                "trainer_logs_in": trainer.args.output_dir.name,
                 "eval_metrics": eval_metrics
             }
             with intermediate_txt_file_path.open("a" if i else "w") as f:
@@ -302,14 +337,14 @@ def main():
             torch.cuda.empty_cache()
             gc.collect()
             logger.debug("CUDA Allocated memory after cleanup: %.2f MB", torch.cuda.memory_allocated() / 1024 ** 2)
-            ####################
         
         with (output_dir_path / "hps-results.jsonl").open("w") as f:
             json.dump(hps_results, f, indent=4)
         logger.info("Results saved @ %s\n%s", output_dir_path, "=" * 100)
     else:
-        mdl_and_tok = _load_model(args.model_path, args.pad_token)
-        trainer = run_training(*mdl_and_tok, train_ds, args, logger)
+        model, tokenizer = _load_model(args.model_path, args.pad_token)
+        trainer = _run_training(model, tokenizer, train_ds)
+        
         logger.info("Merging LoRA and base models")
         merged_model = trainer.model.merge_and_unload()
         merged_model.save_pretrained(
@@ -320,8 +355,11 @@ def main():
         )
         tokenizer.save_pretrained(trainer.args.output_dir)
         logger.info("Merged model saved @ %s", trainer.args.output_dir)
+        
         with (trainer.args.output_dir / "script_params.json").open("w") as f:
             json.dump(arg_dict, f, indent=4)
+        
+        ## EVAL ##
         if not args.skip_eval:
             logger.info("Evaluating on validation set")
             if tokenizer.chat_template is None and args.chat_template is not None:

@@ -68,6 +68,15 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _nt(k: int):
+    """
+    Helper function for logger readability; shortcut for indenting lines
+
+    Returns: str
+    """
+    return "\n" + "\t" * k
+
+
 def _get_rank():
     """
     Return the current process rank 
@@ -110,24 +119,8 @@ def is_main_process():
     return _get_rank() == 0
 
 
-def run_training(args):
-    log_level = "info" if is_main_process() else "error"
-    logger = basic_logger_init(log_level)
-    bookend = "=" * 5
-    logger.info("%s   Causal Language Modelling: Continued Pretraining Run   %s", bookend, bookend)
-    arg_dict = vars(args)
-    def _nt(k):
-        return "\n" + "\t" * k
-    arg_str = _nt(3).join(f"{k}: {v}" for k, v in arg_dict.items())
-    logger.info("* Parameters *%s%s", _nt(3), arg_str)
-    logger.info(
-        "%d processes (%d compute nodes)%s=> Effective Batch Size = %d",
-        idr_torch.world_size,
-        len(idr_torch.nodelist),
-        _nt(3),
-        idr_torch.world_size * args.batch_size * args.grad_acc
-    )
-    logger.info("GPUs: %s", torch.cuda.get_device_properties(0).name)
+def _setup_training_arguments(args, logger):
+    ## TRAINING ARGS SETUP ##
     try:
         use_fsdp = os.path.isfile(args.fsdp_config_path)
     except TypeError:
@@ -152,7 +145,7 @@ def run_training(args):
         hf_logging.disable_progress_bar()
     model_path = Path(args.model_path)
     if model_path.name.startswith("checkpoint"):
-        # continuing training from an existing CLM checkpoint
+        # for continuing training from an existing CLM checkpoint
         model_basename = model_path.parents[0].name.split("_")[0] + "_cp"
     else:
         model_basename = model_path.name
@@ -162,14 +155,14 @@ def run_training(args):
     if is_main_process():
         logging_dir.mkdir(parents=True)
         with (output_dir / "script_params.json").open("w") as f:
-            json.dump(arg_dict, f, indent=4)
+            json.dump(vars(args), f, indent=4)
     eval_strategy = "no" if args.no_eval else "steps"
     use_bf16 = args.prec == "bf"
     use_fp16 = args.prec == "fp"
     dataloader_num_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", "0"))
     local_rank = _get_local_rank()
     disable_tqdm = not args.pb
-    train_args = TrainingArguments(
+    return TrainingArguments(
         output_dir=output_dir,
         eval_strategy=eval_strategy,
         eval_steps=args.log_steps,
@@ -198,7 +191,9 @@ def run_training(args):
         save_only_model=True,
         report_to="tensorboard",
     )
-    
+
+
+def _load_datasets():
     logger.info("Loading dataset from %s", args.data_path)
     tokenized_ds = datasets.load_from_disk(args.data_path)
     logger.info("Dataset loaded: %d rows", tokenized_ds.num_rows)
@@ -209,7 +204,7 @@ def run_training(args):
             tokenized_ds_eval = datasets.load_from_disk(args.eval_data_path)
         except FileNotFoundError:
             logger.warning("Evaluation dataset %s not found; turning off evaluation step", args.eval_data_path)
-            setattr(train_args, "eval_strategy", "no")
+            setattr(args, "no_eval", True)
         else:
             logger.info("Evaluation dataset loaded: %d rows", tokenized_ds_eval.num_rows)
     elif not args.no_eval:
@@ -217,14 +212,16 @@ def run_training(args):
             tokenized_ds_eval = tokenized_ds[args.eval_split_name]
         except KeyError:
             logger.warning("Evaluation split `%s` not found in dataset; turning off evaluation step", args.eval_split_name)
-        else:
-            setattr(train_args, "eval_strategy", "steps")
+            setattr(args, "no_eval", True)
     if isinstance(tokenized_ds, datasets.DatasetDict):
         tokenized_ds = tokenized_ds["train"]
     logger.info("Training dataset: \n%s", repr(tokenized_ds))
     if tokenized_ds_eval is not None:
         logger.info("Evaluation dataset: \n%s", repr(tokenized_ds_eval))
+    return tokenized_ds, tokenized_ds_eval
 
+
+def run_training(train_args, train_ds, eval_ds):
     logger.info("Initialising model + tokenizer")
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
@@ -238,8 +235,8 @@ def run_training(args):
     data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False, seed=args.seed)
     trainer = Trainer(
         model=model,
-        train_dataset=tokenized_ds,
-        eval_dataset=tokenized_ds_eval,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
         args=train_args,
         data_collator=data_collator
     )
@@ -250,7 +247,7 @@ def run_training(args):
     hf_logging.enable_explicit_format()
     try:
         if args.prof:
-            profile_trace_dir = output_dir / "profiles"
+            profile_trace_dir = trainer.args.output_dir / "profiles"
             if is_main_process():
                 profile_trace_dir.mkdir()
             def profile_trace_handler(profiler, d):
@@ -288,11 +285,12 @@ def run_training(args):
     metrics = train_result.metrics
     trainer.log_metrics("train", metrics)
     trainer.save_metrics("train", metrics)
-    trainer.save_model(output_dir)
-    logger.info("Done! Output @ %s\n%s", output_dir, "=" * 50)
+    trainer.save_model(trainer.args.output_dir)
+    logger.info("Done! Output @ %s\n%s", trainer.args.output_dir, "=" * 50)
 
 
 def main():
+    ## DISTRIBUTED GPU SETUP ##
     world_size = idr_torch.world_size if IDRIS else -1
     rank = _get_rank()
     torch.distributed.init_process_group(
@@ -301,8 +299,36 @@ def main():
         world_size=world_size,
         rank=rank,
     )
+
+    ## VARS SETUP ##
+    global logger, args
     args = parse_arguments()
-    run_training(args)
+    log_level = "info" if is_main_process() else "error"
+    logger = basic_logger_init(log_level)
+    
+    bookend = "=" * 5
+    logger.info("%s   Causal Language Modelling: Continued Pretraining Run   %s", bookend, bookend)
+    arg_str = _nt(3).join(f"{k}: {v}" for k, v in args.__dict__.items())
+    logger.info("* Parameters *%s%s", _nt(3), arg_str)
+    gpu_name = torch.cuda.get_device_properties(0).name
+    if IDRIS:
+        node_list = idr_torch.nodelist
+        num_nodes = len(node_list)
+        linebreak_text = _nt(3)
+    else:
+        world_size = torch.distributed.get_world_size()  # can only be run post-initialisation
+        local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
+        num_nodes = world_size // local_world_size
+        linebreak_text = "[Note: number of compute nodes was estimated based on world_size/local_world_size, may be inaccurate]" + _nt(3)
+    ebs = world_size * args.batch_size * args.grad_acc
+    logger.info(
+        "%d processes (%d compute nodes w/ %s)%s=> Effective Batch Size = %d",
+        world_size, num_nodes, gpu_name, linebreak_text, ebs
+    )
+
+    datasets = _load_datasets()
+    train_args = _setup_training_arguments()
+    run_training(train_args, *datasets)
 
 
 if __name__ == "__main__":

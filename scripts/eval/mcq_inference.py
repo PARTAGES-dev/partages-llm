@@ -14,11 +14,8 @@ from partages_llm.processing import get_mcq_answer_pattern, infer_answer_split_t
 from partages_llm.eval.mcqa import mcqa
 
 
-def main():
-
-    ## VARS SETUP ##
+def parse_arguments():
     dataset_names = "frenchmedmcqa", "mediqal"
-    logger = basic_logger_init()
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_path")
     parser.add_argument("data_dir")
@@ -35,7 +32,14 @@ def main():
     parser.add_argument("-a", dest="write_out_all", action="store_true")
     parser.add_argument("--db", dest="debug_mode", action="store_true")
     parser.add_argument("--peft", action="store_true")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+
+    ## VARS SETUP ##
+    logger = basic_logger_init()
+    args = parse_arguments()
 
     ## INPUT DATA ##
     version_prefix = "v" + str(args.dataset_version)
@@ -105,7 +109,7 @@ def main():
     ).sort("seq_len", reverse=False)
     logger.info("Max. sequence length %d", max(sorted_dataset["seq_len"]))
 
-    ## LFG ##
+    ## EVALUATION ##
     mcq_answer_pattern = get_mcq_answer_pattern(eval_dataset_text)
     return_all_outputs = args.write_out and args.write_out_all
     logger.info("Launching generations")
@@ -130,7 +134,7 @@ def main():
     )
     logger.info("EVAL SET METRICS:%s%s", t, metric_disp_str)
 
-    ## DOCUMENT ##
+    ## WRAP UP ##
     if args.write_out:
         results_dir_path = data_dir_base / "eval-results/icl"
         timestamp = datetime.now().strftime("%y-%m-%d_%H-%M")
