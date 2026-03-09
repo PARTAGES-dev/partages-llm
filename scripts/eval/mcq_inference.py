@@ -45,7 +45,7 @@ def main():
     version_prefix = "v" + str(args.dataset_version)
     data_dir_base = Path(args.data_dir)
     formatting_run = list(data_dir_base.glob(version_prefix + "*/")).pop()
-    data_path = data_dir_base / formatting_run / args.dataset_name
+    data_path = formatting_run / args.dataset_name
     assert data_path.exists(), f"Tried to find {data_path} and couldn't"
     logger.info("Loading data from %s", data_path)
     eval_dataset_text = datasets.load_from_disk(data_path)
@@ -67,8 +67,8 @@ def main():
             args.model_path,
             dtype=torch.bfloat16
         )
-    logger.info("Loaded: %s", type(model).__name__)
     model = model.to(device)
+    logger.info("Loaded to device `%s`: %s", device, type(model).__name__)
 
     ## PREPROCESSING ##
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, padding_side="left")
@@ -76,10 +76,9 @@ def main():
         with open(args.chat_template) as f:
             setattr(tokenizer, "chat_template", f.read())
     if not tokenizer.pad_token:
-        if args.pad_token is None:
-            tokenizer.add_special_tokens({"pad_token": tokenizer.eos_token})
-        else:
-            tokenizer.add_special_tokens({"pad_token": args.pad_token})
+        tokenizer.add_special_tokens({
+            "pad_token": tokenizer.eos_token if args.pad_token is None else args.pad_token
+        })
     logger.info("Processing prompts")
     eval_dataset_templated = eval_dataset_text.map(
         lambda x: {
