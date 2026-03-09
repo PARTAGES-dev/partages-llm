@@ -65,20 +65,20 @@ def mcqa(
                 answer = str_[answer_split_idx:]
             else:
                 answer = str_.split(answer_split_token)[-1]
-            answer_match = re.match(mcq_answer_pattern, answer)
-            answer_clean = answer_match.group(1) if answer_match else ''
-            if inspect_responses_live:
-                print(f"DOC : {id_} ({batch_idx + i}/{total_docs})")
-                print("GEN :", answer)
-                print("ANSWER :", answer_clean + "\n")
-                input("Press Enter to continue")
+            answer_matches = re.findall(mcq_answer_pattern, answer)
+            answer_set = set(map(lambda s: re.sub('[^A-Z]', '', s), answer_matches))
             target = label[0]["content"].strip("\n")
             y_set = set(target.split(","))
-            if answer_clean:
-                x_set = set(answer_clean.split(","))
-                overlap = x_set.intersection(y_set)
+            if inspect_responses_live:
+                print(f"DOC : {id_} ({batch_idx + i}/{total_docs})")
+                print("LABEL:", ", ".join(y_set))
+                print("GENERATED TEXT :", answer)
+                print("EXTRACTED ANSWER :", ", ".join(answer_set))
+                input("Press Enter to continue")
+            if answer_set:
+                overlap = answer_set.intersection(y_set)
                 num_correct_responses = len(overlap)  # true positives
-                num_incorrect_responses = len(x_set - overlap)  # false positives
+                num_incorrect_responses = len(answer_set - overlap)  # false positives
                 num_missed_responses = len(y_set - overlap)  # false negatives
                 exact_match = int(num_correct_responses == len(y_set))
             else:

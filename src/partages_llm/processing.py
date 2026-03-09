@@ -207,7 +207,7 @@ def get_mcq_answer_pattern(dataset: Dataset):
         desc="Extracting MCQ answer options",
     )['letters']
     answer_options = ''.join(set(''.join(letters)))
-    return re.compile(fr'/[,\.\s>][({answer_options})][,\.\s<]/g')
+    return re.compile(fr'[,\.\s>]?[{answer_options}][,\.\s<]')
 
 
 def infer_answer_split_tokens_for_text_generation(
