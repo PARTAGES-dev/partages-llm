@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 from argparse import ArgumentParser
 from datetime import datetime
+from functools import partial
 from tqdm import tqdm
+from typing import Any, Dict
 
 from datasets import load_from_disk
 
@@ -22,6 +24,10 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _text_cleaner_map(instance: Dict[str, Any], word_check_min: int):
+    return clean_text(instance["text"], strict=True, word_check_min=word_check_min)
+
+
 def main():
     args = parse_arguments()
     logger = basic_logger_init()
@@ -33,22 +39,14 @@ def main():
     logger.info("Loading from %s", data_path)
     ds = load_from_disk(data_path)
     logger.info("Applying `clean_text`...")
-    ds_clean = ds.map(
-        lambda instance: {
-            "text_cleaned": clean_text(
-                instance["text"], strict=True, word_check_min=args.word_check_min
-            )
-        },
-        num_proc=args.workers
-    )
+    func = partial(_text_cleaner_map, word_check_min=args.word_check_min)
+    ds_clean = ds.map(func, num_proc=args.workers)
     n_removed = 0
     for instance in tqdm(ds_clean, desc="Checking outputs"):
         if instance["text"] and not instance["text_cleaned"]:
             n_removed += 1
     pc_removed = 100 * (n_removed / ds.num_rows)
-    logger.info(
-        f"{n_removed} of {ds.num_rows} documents removed altogether ({pc_removed:.2f}%)",
-    )
+    logger.info("%d of %d documents removed altogether (%.2f%%)", n_removed, ds.num_rows, pc_removed)
     ds_clean = ds_clean.remove_columns("text").rename_column("text_cleaned", "text")
     output_dir = data_dir.parents[1] / (data_dir.parents[0].name + "-clean")
     output_path = make_version_subdir_path(output_dir)
@@ -59,7 +57,7 @@ def main():
     arg_dict["input_path"] = str(data_path)
     with (output_path / "script_params.json").open("w") as f:
         json.dump(arg_dict, f, indent=4)
-    logger.info("Done; output @ %s", output_path)
+    logger.info("Done; output @ %s\n%s", output_path, "=" * 75)
 
 
 if __name__ == "__main__":
