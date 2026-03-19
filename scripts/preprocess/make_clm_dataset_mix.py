@@ -15,6 +15,9 @@ _TRANSBIO_DATA_FILES = ["train/data-003*-of-00365.arrow"]
 _FINEWEB_DATA_FILES = [f"000_0000{i}.parquet"for i in range(6, 10)]
 _EXCLUDE_SOURCES = ['WMT16']
 
+DESC="Puts togther a version of the PARCOMED corpus consisting of a mix of the base dataset "
+"(originally LIMICS/PARTAGES) with TransCorpusBio-FR, ParaDocs, and FineWeb2.0"
+
 
 def default_filepath_args():
     return Bunch(
@@ -24,6 +27,20 @@ def default_filepath_args():
         config=os.path.join(_HERE, os.pardir, "configs/clm-corpus-processing/data-mix-config.json"),
         output=os.path.join(_DATADIR_BASE, "clm-corpus/mix")
     )
+
+
+def parse_arguments():
+    defaults = default_filepath_args()
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    for pathtype in ("base", "transbio", "parallel", "config", "output"):
+        parser.add_argument(
+            f"--{pathtype}-path",
+            type=str,
+            default=getattr(defaults, pathtype)
+        )
+    parser.add_argument("-s", "--seed", type=int, default=42)
+    parser.add_argument("-w", "--workers", type=int, default=16)
+    return parser.parse_args()
 
 
 def subsample_ds(ds, proportion, num_docs_base, seed, logger):
@@ -77,20 +94,6 @@ def normalise_ds(ds, column_transform_dict_func, num_proc):
         num_proc=num_proc,
         remove_columns=remove_columns
     )
-
-
-def parse_arguments():
-    defaults = default_filepath_args()
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    for pathtype in ("base", "transbio", "parallel", "config", "output"):
-        parser.add_argument(
-            f"--{pathtype}-path",
-            type=str,
-            default=getattr(defaults, pathtype)
-        )
-    parser.add_argument("-s", "--seed", type=int, default=42)
-    parser.add_argument("-w", "--workers", type=int, default=16)
-    return parser.parse_args()
 
 
 def main():
