@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from datetime import datetime
 from functools import partial
 from tqdm import tqdm
@@ -16,7 +16,7 @@ _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 
 
 def parse_arguments():
-    parser = ArgumentParser()
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-v", "--dataset-version", type=int, default=0)
     parser.add_argument("-r", "--use-research-version", action="store_true")
     parser.add_argument("-w", "--workers", type=int, default=16)
