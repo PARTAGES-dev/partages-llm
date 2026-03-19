@@ -1,32 +1,25 @@
-import os
 import re
 import json
-import yaml
 import shutil
 import warnings
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
-from itertools import chain
 from math import copysign
-from datetime import datetime
 
 import pandas as pd
 
-from ..utils import format_model_name
+from ..utils import Bunch, format_model_name
+
+FILENAME_PATTERN = re.compile(r"samples_(.+)_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.jsonl")  # extraire la tâche et le timestamp
 
 
-def rearrange_result_files_for_zeno(results_dir: str, dest_dir: str):
-    # regex pour extraire la tâche et le timestamp
-    # TODO: Paths
-    pattern = re.compile(r"samples_(.+)_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.jsonl")
-
-    for model in os.listdir(results_dir):
-        model_path = os.path.join(results_dir, model)
-        if not os.path.isdir(model_path):
+def rearrange_result_files_for_zeno(results_dir: Path, dest_dir: Path):
+    for model_path in results_dir.iterdir():
+        if not model_path.is_dir():
             continue
 
-        for file in os.listdir(model_path):
-            match = pattern.match(file)
+        for fp in model_path.iterdir():
+            match = FILENAME_PATTERN.match(fp.name)
             if not match:
                 continue
 
@@ -34,19 +27,18 @@ def rearrange_result_files_for_zeno(results_dir: str, dest_dir: str):
             timestamp = match.group(2)  # ex: 2025-06-08T19-45-18.063741
 
             # créer la hiérarchie task/model
-            task_dir = os.path.join(dest_dir, task, model)
-            os.makedirs(task_dir, exist_ok=True)
+            task_dir = dest_dir / task / model_path.name
+            task_dir.mkdir(parents=True, exist_ok=True)
 
             # chemins source et destination
-            src_jsonl = os.path.join(model_path, file)
-            src_json = os.path.join(model_path, f"results_{timestamp}.json")
-
-            dst_jsonl = os.path.join(task_dir, file)
-            dst_json = os.path.join(task_dir, f"results_{timestamp}.json")
+            src_jsonl = model_path / fp.name
+            src_json = model_path / f"results_{timestamp}.json"
+            dst_jsonl = task_dir / fp.name
+            dst_json = task_dir / f"results_{timestamp}.json"
 
             # copie des fichiers
             shutil.copy2(src_jsonl, dst_jsonl)
-            if os.path.exists(src_json):
+            if src_json.exists():
                 shutil.copy2(src_json, dst_json)
             else:
                 warnings.warn(f"Missing JSON file for {src_jsonl}", RuntimeWarning)
@@ -96,17 +88,11 @@ def get_task_results(
 
 def gather_lm_eval_results_by_domain(
     input_dir: Union[str, List[str]],
-    output_dir: str,
     recursive: bool = False,
-    output_name: Optional[str] = None,  # TODO: get rid - return dataframe and have script/user write to disk if they want
-    completion_stats_config: Optional[Union[str, Dict[str, Union[List[str], bool]]]] = None,  # TODO: get rid of this
-    task_group_ref_path: Optional[str] = None,
     base_model_name_only: bool = False,
     existing_results: Optional[pd.DataFrame] = None,
     verbose: bool = False
 ) -> type(None):
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True)
     all_results = []
     if isinstance(input_dir, str):
         input_dir = [input_dir]
@@ -123,9 +109,9 @@ def gather_lm_eval_results_by_domain(
     if verbose: print("All results gathered: %d" % len(all_results))
     rows = []
     if existing_results is None:
-        existing_results = {"task": [], "model": []}  # TODO: make this a Bunch; for now, I'm avoiding cross-imports between different lib packages
+        existing_results = Bunch(task=[], model=[])
     for result in all_results:
-        if result["task"] in existing_results["task"] and result["model"] in existing_results["model"]:
+        if result["task"] in existing_results.task and result["model"] in existing_results.model:
             continue
         metrics = result["metrics+agg"]
         scores = result["scores"]
@@ -142,44 +128,11 @@ def gather_lm_eval_results_by_domain(
                 })
     if verbose: print("Formatted: %d rows" % len(rows))
     df = pd.DataFrame(rows).drop_duplicates()
-    if verbose:
-        print("Dataframe: %d rows\n%s" % (len(df), repr(df)))
-        if not task_group_ref_path:
-            raise RuntimeError("Completion stats requested but no task grouping reference provided")
-        with Path(task_group_ref_path).open() as f:
-            task_group_ref = yaml.safe_load(f)
-        if completion_stats_config:
-            if isinstance(completion_stats_config, str):
-                with Path(completion_stats_config).open() as f:
-                    completion_stats_config = json.load(f)
-            completion_stats_task_groups = completion_stats_config["task_groups"] \
-                if completion_stats_config["task_groups"] else list(task_group_ref)
-            completion_stats_tasks = list(chain(*[
-                [t["task"] for t in task_group_ref[group]] for group in completion_stats_task_groups
-            ]))
-            task_count = len(completion_stats_tasks)
-            df_completion_stats = df[
-                df.task.isin(completion_stats_tasks) & df.model.isin(completion_stats_config["models"])
-            ]
-            for model in df_completion_stats.model.drop_duplicates():
-                completed_tasks = df_completion_stats.loc[
-                    df_completion_stats.model.str.startswith(model), "task"
-                ]
-                completed_task_count = len(completed_tasks)
-                model_completion_stats_disp = f"{model}: {completed_task_count}/{task_count}"
-                if completion_stats_config["print_missing"]:
-                    if completed_task_count:
-                        missing_tasks = set(completion_stats_tasks) - set(completed_tasks)
-                        if missing_tasks:
-                            model_completion_stats_disp += "\nMissing: " + ", ".join(missing_tasks)
-                print(model_completion_stats_disp, end="\n" * 2)
-    if not output_name:
-        output_name = "eval_results_" + datetime.now().strftime("%y-%m-%d-%H-%M")
-    write_path = output_path / (output_name + ".tsv")
+    if verbose: print("Dataframe: %d rows\n%s" % (len(df), repr(df)))
     if isinstance(existing_results, pd.DataFrame):
         df = pd.concat((existing_results, df), ignore_index=True)
-    df.to_csv(write_path, index=False, encoding="utf-8", sep="\t")
-    if verbose: print("\nOutput written to %s" %  write_path)
+    return df
+    
 
 
 def get_lm_eval_task_outputs_by_model(
@@ -212,37 +165,11 @@ def compare_head2head(
         d = sample2["acc"] - sample1["acc"]
         idx = int(copysign(1, d)) + 1 if d else 1
         counts[idx] += 1
-    # n_samples = i + 1
     names = model_name1, "equal", model_name2
     return dict(zip(names, counts))
 
 
 def head2head_chart(df: pd.DataFrame):
-    pass
+    raise NotImplementedError("head2head_chart: WIP")
 
-
-def _make_table_row(df_row):
-    return f"{df_row['model']} & {df_row['score']:>6.2f}$\\pm${df_row['std']:.1f} & {df_row['metric']}"
-
-
-def csv2table(
-    input_path: Union[Path, str],
-    output_path: Union[Path, str],
-    sep: str="\t",
-):
-    df = pd.read_csv(input_path, sep=sep).sort_values(by=["task", "model"])
-    if df.score.max() <= 1.:
-        # convert scores to percentages
-        df['score'] *= 100
-        df['std'] *= 100
-    if isinstance(output_path, str):
-        output_path = Path(output_path)
-    with output_path.open("w") as f:
-        for task in df.task.unique():
-            task_df = df[df.task == task]
-            n_shots = task_df.nshots.tolist().pop()
-            f.write(f"Task: {task}\t{n_shots}-shot\n")
-            for _, row in df[df.task == task].iterrows():
-                f.write(_make_table_row(row) + "\n")
-            f.write("\n")  # empty line between the tasks
 

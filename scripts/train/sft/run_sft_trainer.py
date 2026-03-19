@@ -27,29 +27,29 @@ def parse_arguments():
     home = os.getenv("HOME")
     default_output_dir = os.path.join(home, "partages-models/sft-runs/")
     default_data_dir = os.path.join(home, "partages-data/sft")
-    lora_init_options = "eva", "pissa_niter_16", "id"  # TODO: look into EVA config
+    lora_init_options = "eva", "pissa_niter_16", "id"
 
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)  # TODO: help messages
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_path")
     parser.add_argument("-v", "--dataset-version", type=int, default=0)
-    parser.add_argument("-r", "--rank-dimension", type=int, default=16)  ### HPS value ###
+    parser.add_argument("-r", "--rank-dimension", type=int, default=16)
     parser.add_argument("-n", "--ndocs", type=int)
     parser.add_argument("-o", "--output-dir", default=default_output_dir)
     parser.add_argument("-d", "--dataset-name", choices=_DATASET_NAMES)
     parser.add_argument("--ctp", dest="chat_template_path")
-    parser.add_argument("--lora-init", choices=lora_init_options, default="id")  ### HPS value ###
-    parser.add_argument("--use-dora", action="store_true")  ### HPS flag ###
+    parser.add_argument("--lora-init", choices=lora_init_options, default="id")
+    parser.add_argument("--use-dora", action="store_true")
     parser.add_argument("--skip-eval", action="store_true")
-    parser.add_argument("--tt", dest="target_tokens", action="store_true")  ### HPS flag ###
+    parser.add_argument("--tt", dest="target_tokens", action="store_true")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--eval-steps", type=float, default=.1)
     parser.add_argument("--log-steps", type=int, default=100)
     parser.add_argument("--batch-size", dest="train_batch_size", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int)
     parser.add_argument("--grad-acc", type=int, default=4)
-    parser.add_argument("--lr", type=float, default=5e-4)  ### HPS value ###
-    parser.add_argument("--schedule", default="constant")  ### HPS value ###
-    parser.add_argument("--lora-alpha", type=int, default=8)  ### HPS value ###
+    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--schedule", default="constant")
+    parser.add_argument("--lora-alpha", type=int, default=8)
     parser.add_argument("--lora-dropout", type=float, default=.05)
     parser.add_argument("--wu", dest="warmup", type=float, default=.15)
     parser.add_argument("--mml", dest="model_max_length", type=int, default=2048)

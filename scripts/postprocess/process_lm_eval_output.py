@@ -16,46 +16,43 @@ def main():
         help="Directories where the model results are stored",
     )
     parser.add_argument(
-        "--output_dir",
+        "--output-dir",
         help="Directory to put the TSV file in",
     )
     parser.add_argument(
-        "--name_tsv",
+        "--name-tsv",
         help="Optional name for the TSV file (without extension)",
-    )
-    parser.add_argument(
-        "--cstats",
-        help="Path to a config file for calculating & showing task completion statistics"
     )
     parser.add_argument("-r", dest="recursive", action="store_true")
     parser.add_argument("-v", dest="verbose", action="store_true")
-    parser.add_argument("--no-bmno", action="store_true")
+    parser.add_argument(
+        "--bmno", action="store_true",
+        help="Include only model basenames in the output (default is to include 1 parent dir)"
+    )
     args = parser.parse_args()
-    task_group_ref_path =  os.path.normpath(os.path.join(
-        os.path.dirname(__file__),
-        *[os.pardir] * 3,
-        "data/cfg/lm-eval/task-groups-flat.yaml"
-    ))
     output_dir = args.output_dir if args.output_dir else args.input_dir[0]
     output_filepath_maybe = Path(output_dir) / "gathered.tsv"
     if output_filepath_maybe.exists():
         existing_results = pd.read_csv(output_filepath_maybe, sep='\t')
         output_name = output_filepath_maybe.stem
+        write_path = output_filepath_maybe
     else:
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
         existing_results = None
         output_name = args.name_tsv
-    base_model_name_only = not args.no_bmno
-    gather_results_by_domain(
+        write_path = output_path / (output_name + ".tsv")
+    results_df = gather_results_by_domain(
         input_dir=args.input_dir,
-        output_dir=output_dir,
         output_name=output_name,
-        completion_stats_config=args.cstats,
-        task_group_ref_path=task_group_ref_path,
-        base_model_name_only=base_model_name_only,
+        base_model_name_only=args.bmno,
         recursive=args.recursive,
         existing_results=existing_results,
         verbose=args.verbose
     )
+    results_df.to_csv(write_path, index=False, encoding="utf-8", sep="\t")
+    if args.verbose:
+        print("\nOutput written to %s" %  write_path)
 
 
 if __name__ == "__main__":
