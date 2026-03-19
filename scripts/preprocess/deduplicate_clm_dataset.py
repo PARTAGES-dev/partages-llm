@@ -4,7 +4,7 @@ import tempfile
 import subprocess
 import multiprocessing as mp
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from typing import Any, Dict, Optional, Union
 from _io import TextIOWrapper
 from logging import RootLogger
@@ -18,13 +18,12 @@ from datasets import Dataset, DatasetDict, load_from_disk
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
+
 
 def parse_arguments():
-    default_output_dir = os.path.normpath(os.path.join(
-        os.path.dirname(__file__), *[os.pardir] * 3,
-        "data/wp2-corpus/"
-    ))
-    parser = ArgumentParser()
+    default_output_dir = str(_DATADIR_BASE / "parcomed")
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("corpus_path", type=str)
     parser.add_argument("-n", dest="ngram", type=int, nargs="*", default=3)
     parser.add_argument("-t", dest="threshold", type=float, nargs="*", default=.5)
@@ -113,11 +112,11 @@ def run_onion(
     input_path: Path,
     executable: str,
     opts: str,
-    output_dir: Path,
+    output_dir_path: Path,
     logger: Optional[RootLogger] = None,
     log_prefix: str = ""
 ):
-    output_path = output_dir / "corpus-dedup.vert"
+    output_path = output_dir_path / "corpus-dedup.vert"
     dedup_cmd = [executable, *opts.split(), str(input_path)]
     logger.info(
         "%sRunning deduplication command: %s > %s",
@@ -145,11 +144,11 @@ def statmode_func_mp_wrapper(
     run_kwargs: Dict[str, Any]
 ):
     proc = mp.current_process()._identity[0] + process_id_offset
-    output_dir = tmp_path / f"output-{proc}"
-    output_dir.mkdir()
+    output_dir_path = tmp_path / f"output-{proc}"
+    output_dir_path.mkdir()
     run_kwargs.update({
         "log_prefix": f"Process {proc}: ",
-        "output_dir": output_dir
+        "output_dir_path": output_dir_path
     })
     return statmode_func(ngram, threshold, buffer, run_kwargs)
 
@@ -267,7 +266,7 @@ def main():
                         map_args = list((j, *t) for j, t in zip(repeat(process_id_offset), params_this_iter))
                         output["dedup_runs"].extend(pool.starmap(map_func, map_args))
             else:
-                run_onion_kwargs["output_dir"] = tmp_path
+                run_onion_kwargs["output_dir_path"] = tmp_path
                 for ngram, threshold in product(args.ngram, args.threshold):
                     output["dedup_runs"].append(
                         statmode_func(ngram, threshold, args.buffer, run_onion_kwargs)
