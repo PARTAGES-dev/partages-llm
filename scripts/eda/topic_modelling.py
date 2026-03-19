@@ -51,7 +51,7 @@ def parse_arguments():
     default_output_dir = os.path.join(_DATADIR_BASE, "topic-modelling")
     default_prompt_template_file = os.path.join(_DATADIR_BASE, "config/templates/topic-modelling-prompt-v0.jinja")
     parser = argparse.ArgumentParser(
-        description=DESC, formatter_class=argparse.ArgumentDefaultsHelpFormatter  # Shows default values in help message
+        description=DESC, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("bert_model_id", type=str, help=MODEL_HELP)
     parser.add_argument("dataset_id", type=str, help=DATA_HELP)
