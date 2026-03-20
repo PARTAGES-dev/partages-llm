@@ -129,8 +129,6 @@ def mcqa(
         
         ## INPUT COLLATION ##
         batch_tensors = _prepare_batch(batch, generation_input_keys, tokenizer, model.device)
-        if not batch_idx:
-            print(type(batch_tensors))
         if return_all_outputs:
             # keep track of how many total tokens are being passed in
             # this can sometimes help with diagnosing memory issues etc.
