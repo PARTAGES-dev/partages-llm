@@ -66,7 +66,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def _load_model(model_path, pad_token=None):
+def load_model(model_path, pad_token=None):
     base_model = AutoModelForCausalLM.from_pretrained(model_path)
     if isinstance(base_model, Gemma3Model):
         base_model = base_model.language_model  # we only want the text model
@@ -80,7 +80,7 @@ def _load_model(model_path, pad_token=None):
     return base_model, tokenizer
 
 
-def _load_datasets():
+def load_datasets():
     ds_dir = Path(args.ds_dir) / ("v" + str(args.dataset_version))
     assert ds_dir.exists(), f"{ds_dir} not found"
     if args.dataset_name:
@@ -102,7 +102,7 @@ def _load_datasets():
     return train_ds, eval_ds
 
 
-def _run_training(
+def run_training(
     model,
     tokenizer,
     train_ds,
@@ -193,7 +193,7 @@ def _run_training(
     return trainer
 
 
-def _run_hps_iter(
+def run_hps_iter(
     iter_idx: int,
     output_dir_path: Path,
     hp_kwargs: Dict[str, Any],
@@ -201,7 +201,7 @@ def _run_hps_iter(
     bs_adjustments: int,
 ) -> Union[SFTTrainer, int, type(None)]:
     """
-    Wraps `_run_training` with some extra stuff for managing multiple runs where different parameter
+    Wraps `run_training` with some extra stuff for managing multiple runs where different parameter
     combinations are being tested.
 
     Returns:
@@ -213,9 +213,9 @@ def _run_hps_iter(
     hp_kwargs_disp = ", ".join(f"{k}={v}" for k, v in hp_kwargs.items())
     logger.info("Setting variable hyperparameters for run %d: %s", iter_idx, hp_kwargs_disp)
     args.__dict__.update(hp_kwargs)
-    base_model, tokenizer = _load_model(args.model_path, args.pad_token)
+    base_model, tokenizer = load_model(args.model_path, args.pad_token)
     try:
-        trainer = _run_training(
+        trainer = run_training(
             model=base_model,
             tokenizer=tokenizer,
             train_ds=ds["train"],
@@ -274,7 +274,7 @@ def main():
     logger.info("Num. GPUs: %d", torch.cuda.device_count())
     
     ## INPUT DATA ##
-    train_ds, eval_ds = _load_datasets()
+    train_ds, eval_ds = load_datasets()
         
     if args.hps_cfg:
         
@@ -297,7 +297,7 @@ def main():
                 break
             
             hp_kwargs = dict(zip(hpsc_processed, value_combination))
-            trainer = _run_hps_iter(i + 1, output_dir_path, hp_kwargs, dev_split_ds, bs_adjustments)
+            trainer = run_hps_iter(i + 1, output_dir_path, hp_kwargs, dev_split_ds, bs_adjustments)
             if isinstance(trainer, int):
                 continue
             elif trainer is None:
@@ -342,8 +342,8 @@ def main():
             json.dump(hps_results, f, indent=4)
         logger.info("Results saved @ %s\n%s", output_dir_path, "=" * 100)
     else:
-        model, tokenizer = _load_model(args.model_path, args.pad_token)
-        trainer = _run_training(model, tokenizer, train_ds)
+        model, tokenizer = load_model(args.model_path, args.pad_token)
+        trainer = run_training(model, tokenizer, train_ds)
         
         logger.info("Merging LoRA and base models")
         merged_model = trainer.model.merge_and_unload()

@@ -15,7 +15,7 @@ _TRANSBIO_DATA_FILES = ["train/data-003*-of-00365.arrow"]
 _FINEWEB_DATA_FILES = [f"000_0000{i}.parquet"for i in range(6, 10)]
 _EXCLUDE_SOURCES = ['WMT16']
 
-DESC="Puts togther a version of the PARCOMED corpus consisting of a mix of the base dataset "
+DESC="Puts togther a version of the PARCOMED corpus consisting of a mix of the base dataset "\
 "(originally LIMICS/PARTAGES) with TransCorpusBio-FR, ParaDocs, and FineWeb2.0"
 
 

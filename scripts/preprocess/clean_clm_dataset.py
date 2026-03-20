@@ -24,7 +24,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def _text_cleaner_map(instance: Dict[str, Any], word_check_min: int):
+def text_cleaner_map(instance: Dict[str, Any], word_check_min: int):
     return clean_text(instance["text"], strict=True, word_check_min=word_check_min)
 
 
@@ -39,7 +39,7 @@ def main():
     logger.info("Loading from %s", data_path)
     ds = load_from_disk(data_path)
     logger.info("Applying `clean_text`...")
-    func = partial(_text_cleaner_map, word_check_min=args.word_check_min)
+    func = partial(text_cleaner_map, word_check_min=args.word_check_min)
     ds_clean = ds.map(func, num_proc=args.workers)
     n_removed = 0
     for instance in tqdm(ds_clean, desc="Checking outputs"):

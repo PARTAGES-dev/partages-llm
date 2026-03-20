@@ -68,7 +68,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def _nt(k: int):
+def ndnt(k: int):
     """
     Helper function for logger readability; shortcut for indenting lines
 
@@ -77,7 +77,7 @@ def _nt(k: int):
     return "\n" + "\t" * k
 
 
-def _get_rank():
+def get_torch_rank():
     """
     Return the current process rank 
 
@@ -88,7 +88,7 @@ def _get_rank():
     return int(os.environ.get("RANK", "0"))
 
 
-def _get_local_rank():
+def get_torch_local_rank():
     """
     Return the current process rank local to the node
     (i.e. identify the current GPU among the other GPUs on
@@ -107,7 +107,7 @@ def is_local_main_process():
 
     Returns: bool
     """
-    return _get_local_rank() == 0
+    return get_torch_local_rank() == 0
 
 
 def is_main_process():
@@ -116,11 +116,10 @@ def is_main_process():
 
     Returns: bool
     """
-    return _get_rank() == 0
+    return get_torch_rank() == 0
 
 
-def _setup_training_arguments(args, logger):
-    ## TRAINING ARGS SETUP ##
+def setup_training_arguments(args, logger):
     try:
         use_fsdp = os.path.isfile(args.fsdp_config_path)
     except TypeError:
@@ -137,9 +136,9 @@ def _setup_training_arguments(args, logger):
         for kw, data in fsdp_cfg.items():
             if isinstance(data, dict):
                 for k, v in data.items():
-                    fsdp_cfg_str += _nt(4) + f"{k}: {v}"
+                    fsdp_cfg_str += ndnt(4) + f"{k}: {v}"
             else:
-                fsdp_cfg_str += _nt(3) + f"{kw}: {data}"
+                fsdp_cfg_str += ndnt(3) + f"{kw}: {data}"
         logger.info("* FSDP Configuration: *%s", fsdp_cfg_str)
     if not args.pb:
         hf_logging.disable_progress_bar()
@@ -149,7 +148,8 @@ def _setup_training_arguments(args, logger):
         model_basename = model_path.parents[0].name.split("_")[0] + "_cp"
     else:
         model_basename = model_path.name
-    output_basename = model_basename + "_" + TIMESTAMP + "-" + os.environ.get("SLURM_JOB_ID", uuid4().hex)
+    job_id = os.environ.get("SLURM_JOB_ID", uuid4().hex)
+    output_basename = model_basename + "_" + TIMESTAMP + "-" + job_id
     output_dir = Path(args.output_dir) / output_basename
     logging_dir = output_dir / "logs"
     if is_main_process():
@@ -160,7 +160,7 @@ def _setup_training_arguments(args, logger):
     use_bf16 = args.prec == "bf"
     use_fp16 = args.prec == "fp"
     dataloader_num_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", "0"))
-    local_rank = _get_local_rank()
+    local_rank = get_torch_local_rank()
     disable_tqdm = not args.pb
     return TrainingArguments(
         output_dir=output_dir,
@@ -193,7 +193,7 @@ def _setup_training_arguments(args, logger):
     )
 
 
-def _load_datasets():
+def load_datasets():
     logger.info("Loading dataset from %s", args.data_path)
     tokenized_ds = datasets.load_from_disk(args.data_path)
     logger.info("Dataset loaded: %d rows", tokenized_ds.num_rows)
@@ -226,7 +226,7 @@ def run_training(train_args, train_ds, eval_ds):
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
         dtype=torch.bfloat16,
-        local_files_only=True
+        local_files_only=IDRIS
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     tokenizer.add_special_tokens({"pad_token": args.pad_token})
@@ -276,7 +276,7 @@ def run_training(train_args, train_ds, eval_ds):
         else:
             train_result = trainer.train()
     except Exception:
-        rank = _get_rank()
+        rank = get_torch_rank()
         logger.error("TRAINER FAILED @ PROCESS %d", rank)  # just so there'll be a timestamp in the stdout for when a process fails
         tb = traceback.format_exc()
         print(tb.replace("\n", f"\n[rank{rank}] "), file=sys.stderr)
@@ -293,7 +293,7 @@ def run_training(train_args, train_ds, eval_ds):
 def main():
     ## DISTRIBUTED GPU SETUP ##
     world_size = idr_torch.world_size if IDRIS else -1
-    rank = _get_rank()
+    rank = get_torch_rank()
     torch.distributed.init_process_group(
         backend="nccl",
         init_method="env://",
@@ -309,26 +309,27 @@ def main():
     
     bookend = "=" * 5
     logger.info("%s   Causal Language Modelling: Continued Pretraining Run   %s", bookend, bookend)
-    arg_str = _nt(3).join(f"{k}: {v}" for k, v in args.__dict__.items())
-    logger.info("* Parameters *%s%s", _nt(3), arg_str)
+    arg_str = ndnt(3).join(f"{k}: {v}" for k, v in args.__dict__.items())
+    logger.info("* Parameters *%s%s", ndnt(3), arg_str)
     gpu_name = torch.cuda.get_device_properties(0).name
     if IDRIS:
         node_list = idr_torch.nodelist
         num_nodes = len(node_list)
-        linebreak_text = _nt(3)
+        linebreak_text = ndnt(3)
     else:
         world_size = torch.distributed.get_world_size()  # can only be run post-initialisation
         local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
         num_nodes = world_size // local_world_size
-        linebreak_text = "[Note: number of compute nodes was estimated based on world_size/local_world_size, may be inaccurate]" + _nt(3)
+        linebreak_text = "[Note: number of compute nodes was estimated based on world_size/local_world_size, may be inaccurate]" + ndnt(3)
     ebs = world_size * args.batch_size * args.grad_acc
     logger.info(
         "%d processes (%d compute nodes w/ %s)%s=> Effective Batch Size = %d",
         world_size, num_nodes, gpu_name, linebreak_text, ebs
     )
 
-    datasets = _load_datasets()
-    train_args = _setup_training_arguments()
+    ## LAUNCH ##
+    datasets = load_datasets()
+    train_args = setup_training_arguments()
     run_training(train_args, *datasets)
 
 
