@@ -1,9 +1,9 @@
 import json
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from pathlib import Path
 from warnings import warn
 from datetime import datetime
 from random import randint
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from pathlib import Path
 
 import torch
 import datasets

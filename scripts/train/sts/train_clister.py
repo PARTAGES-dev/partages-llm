@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 from torch import manual_seed
 from torch.utils.data import DataLoader
-from scipy.stats import spearmanr
 from sentence_transformers import SentenceTransformer, InputExample
 from sentence_transformers.models import Transformer, Pooling
 from sentence_transformers.losses import CosineSimilarityLoss
 from sentence_transformers.util import cos_sim
+from scipy.stats import spearmanr
 
 from partages_llm.utils import basic_logger_init
 

@@ -4,10 +4,10 @@ from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from datetime import datetime
 from functools import partial
-from tqdm import tqdm
 from typing import Any, Dict
 
 from datasets import load_from_disk
+from tqdm import tqdm
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 from partages_llm.processing import clean_text

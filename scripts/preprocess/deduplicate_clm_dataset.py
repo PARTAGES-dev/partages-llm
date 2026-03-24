@@ -8,30 +8,34 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from typing import Any, Dict, Optional, Union
 from _io import TextIOWrapper
 from logging import RootLogger
-from tqdm import tqdm
-from lxml import etree
 from uuid import uuid4
 from functools import partial
 from itertools import product, repeat
 
 from datasets import Dataset, DatasetDict, load_from_disk
+from tqdm import tqdm
+from lxml import etree
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
 _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 DESC = "Optional step 2 of the preprocessing pipeline for the PARCOMED CLM corpus: "\
 "deduplicates the text using the Onion corpus processing tool."
-NGRAM_HELP = ""
-THRESHOLD_HELP = ""
-BUFFER_HELP = ""
-DOCLIMIT_HELP = ""
-MSPVD_HELP = ""
-Q_HELP = ""
-SIVF_HELP = ""
-SHUFFLECORPUS_HELP = ""
-STATMODE_HELP = ""
-CDC_HELP = ""
-WORKERS_HELP = ""
+NGRAM_HELP = "Length of n-grams to compare"
+THRESHOLD_HELP = "Similarity threshold to define duplication"
+BUFFER_HELP = "Set buffer size in bytes"
+DOCLIMIT_HELP = "Ceiling on the number of documents to include"
+MSPVD_HELP = "Ceiling on the number of sentences to include in each .vert file to "\
+"input to onion"
+Q_HELP = "Suppress terminal output"
+SIVF_HELP = "Save the file(s) passed to onion; default is to keep in a temporary "\
+"directory that is deleted when the run wraps up"
+SHUFFLECORPUS_HELP = "Randomly shuffles the dataset before launching processing"
+STATMODE_HELP = "Runs the script in `statistics mode` - doesn't write any data to "\
+"disk, just collects measurements on how much the input is compressed for a range "\
+"of parameters (multiple )"
+CDC_HELP = "Remove the buildup of datasets library cache files from the output directory"
+WORKERS_HELP = "Ceiling on the number of parallel processes to run in statistics mode"
 
 
 def parse_arguments():
@@ -220,7 +224,7 @@ def main():
         if isinstance(ds, DatasetDict):
             ds = ds["train"]
         if args.shuffle_corpus:
-            ds = ds.shuffle(seed=0)
+            ds = ds.shuffle(seed=976431)
         vert_file_path_input = None
         logger.info("Dataset loaded:\n%s", repr(ds))
     elif os.path.isfile(args.corpus_path) and args.corpus_path.endswith(".vert"):
