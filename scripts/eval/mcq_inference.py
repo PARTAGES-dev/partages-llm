@@ -1,4 +1,5 @@
 import json
+from warnings import warn
 from datetime import datetime
 from random import randint
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -21,7 +22,7 @@ CT_HELP="Path to a .jinja file containing the template to apply to the prompts; 
 "mandatory when the tokenizer associated with `model_path` doesn't already have a chat template"
 TEMP_HELP="Modulation parameter for sampling from the logits distribution. Max value 1.0 gives maximal randomness"
 TOPP_HELP="Percentage threshold on the tokens considered for inclusion in the generated text; "\
-"see https://en.wikipedia.org/wiki/Top-p_sampling (not valid for some models)"
+"see https://en.wikipedia.org/wiki/Top-p_sampling. Not valid for some models"
 WRITE_HELP="Records results in a subdirectory of `data_dir`"
 WRITEALL_HELP="Includes all generated text with the results. Only active alongside `-o` flag, "\
 "i.e. pass `-o` for results only and `-oa` for full details"
@@ -65,6 +66,9 @@ def main():
     data_path = formatting_run / args.dataset_name
     assert data_path.exists(), f"Tried to find {data_path} and couldn't"
     logger.info("Loading data from %s", data_path)
+    if (data_path / "dataset_dict.json").exists():
+        # train/eval split - we don't need the train data
+        data_path = data_path / "validation"
     eval_dataset_text = datasets.load_from_disk(data_path)
     if args.ndocs:
         eval_dataset_text = eval_dataset_text.shuffle(seed=0).take(args.ndocs)
@@ -75,9 +79,8 @@ def main():
     if args.peft:
         model = AutoPeftModelForCausalLM.from_pretrained(
             args.model_path,
-            dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            ignore_mismatched_sizes=True
+            ignore_mismatched_sizes=True,
         )
     else:
         model = AutoModelForCausalLM.from_pretrained(
@@ -89,9 +92,17 @@ def main():
 
     ## PREPROCESSING ##
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, padding_side="left")
-    if tokenizer.chat_template is None and args.chat_template is not None:
-        with open(args.chat_template) as f:
-            setattr(tokenizer, "chat_template", f.read())
+    if tokenizer.chat_template is None:
+        if args.chat_template is not None:
+            with open(args.chat_template) as f:
+                setattr(tokenizer, "chat_template", f.read())
+        else:
+            ct_path_maybe = Path(args.model_path) / "chat_template.jinja"
+            if ct_path_maybe.exists():
+                with ct_path_maybe.open() as f:
+                    setattr(tokenizer, "chat_template", f.read())
+            else:
+                warn("No chat template found: this may break tokenisation", RuntimeWarning)
     if not tokenizer.pad_token:
         tokenizer.add_special_tokens({
             "pad_token": tokenizer.eos_token if args.pad_token is None else args.pad_token

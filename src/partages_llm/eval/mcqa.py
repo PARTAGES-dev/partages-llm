@@ -41,8 +41,10 @@ def _generate_response_text(
     max_new_tokens: int,
     tokenizer: PreTrainedTokenizerFast
 ) -> List[str]:
+    do_sample = temperature > 0.
     outputs = model.generate(
         **batch_tensors,
+        do_sample=do_sample,
         temperature=temperature,
         top_p=top_p,
         max_new_tokens=max_new_tokens,
@@ -102,7 +104,7 @@ def mcqa(
     max_new_tokens: int,
     mcq_answer_pattern: re.Pattern,
     answer_split_token: Optional[str] = None,
-    temperature: float = 1.,
+    temperature: float = .05,
     top_p: float = .9,
     inspect_responses_live: bool = False,
     return_all_outputs: bool = False,

@@ -52,7 +52,7 @@ def parse_arguments():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--grad_acc", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-5)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=97531)
     parser.add_argument("--steps", type=int, default=-1)  # replicate TrainingArguments default
     parser.add_argument("--save_steps", type=int, default=100)
     parser.add_argument("--log_steps", type=int, default=100)

@@ -54,7 +54,7 @@ def parse_arguments():
     parser.add_argument("--wu", dest="warmup", type=float, default=.15)
     parser.add_argument("--mml", dest="model_max_length", type=int, default=2048)
     parser.add_argument("--eval-acc", type=int)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=24680)
     parser.add_argument("--opt", default="adamw_torch_fused")
     parser.add_argument("--dd", dest="ds_dir", default=default_data_dir)
     parser.add_argument("--pad-token")
@@ -133,7 +133,8 @@ def run_training(
         use_dora=args.use_dora,
         use_rslora=True,
         trainable_token_indices=trainable_token_indices,
-        init_lora_weights=init_lora_weights
+        init_lora_weights=init_lora_weights,
+        ensure_weight_tying=True,
     )
     logger.info("PEFT Config:\n%s", repr(peft_config))
     if output_dir is None:
@@ -356,7 +357,7 @@ def main():
         tokenizer.save_pretrained(trainer.args.output_dir)
         logger.info("Merged model saved @ %s", trainer.args.output_dir)
         
-        with (trainer.args.output_dir / "script_params.json").open("w") as f:
+        with (Path(trainer.args.output_dir) / "script_params.json").open("w") as f:
             json.dump(arg_dict, f, indent=4)
         
         ## EVAL ##
@@ -382,22 +383,24 @@ def main():
                 # run eval on both datasets
                 eval_results = {}
                 for dataset_name in eval_ds:
+                    mcq_answer_pattern = get_mcq_answer_pattern(eval_ds[dataset_name])
                     eval_results_iter = mcqa(
                         model=merged_model,
                         tokenizer=tokenizer,
                         dataset=eval_ds[dataset_name],
-                        mcq_answer_pattern=get_mcq_answer_pattern(eval_ds[dataset_name]),
+                        mcq_answer_pattern=mcq_answer_pattern,
                         batch_size=args.eval_batch_size,
                         max_new_tokens=16
                     )
                     logger.info("%s EVAL SET METRICS:\n\t%s", dataset_name.upper(), _metric_disp_str(eval_results_iter["metrics"]))
                     eval_results[dataset_name] = eval_results_iter
             else:
+                mcq_answer_pattern = get_mcq_answer_pattern(eval_ds)
                 eval_results = mcqa(
                     model=merged_model,
                     tokenizer=tokenizer,
                     dataset=eval_ds,
-                    mcq_answer_pattern=get_mcq_answer_pattern(eval_ds),
+                    mcq_answer_pattern=mcq_answer_pattern,
                     batch_size=args.eval_batch_size,
                     max_new_tokens=16
                 )
