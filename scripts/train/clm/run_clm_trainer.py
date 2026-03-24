@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import uuid4
 from functools import partial
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import torch
 import datasets
@@ -36,26 +36,40 @@ PREC2DTYPE = {"bf": torch.bfloat16, "fp": torch.float16, "no": torch.float}
 TIMESTAMP = datetime.now().strftime("%y-%m-%d-%H-%M")
 SCHEDULERS = {"constant", "linear", "cosine"}
 
+DESC = "Runs Causal Language Modelling (CLM) using a pre-trained model and a pre-tokenized "\
+"dataset. Most of the command-line arguments for this script are passed directly to the "
+"`Trainer` API as arguments: see https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments"
+EPOCHS_HELP = "Number of repeated passes over the dataset"
+GA_HELP = "Gradient Accumulation: number of batches over which to aggregate the loss "\
+"gradients before making each backward pass."
+LR_HELP = "Learning rate."
+STEPS_HELP = "Number of gradient updates to run; overwrite `epochs` if provided."
+PREC_HELP = "Numerical precision to use for the model weights. `bf` gives torch.bfloat16, "\
+"`fp` torch.float16 and `no` gives torch.float (32-bit)."
+OPT_HELP = "Optimizer to use for training."
+SCHED_HELP = "Learning rate scheduling system."
+PB_HELP = "Show a progress bar for training."
+
 
 def parse_arguments():
     base_dir_variable = "WORK" if IDRIS else "HOME"
     base_dir = os.getenv(base_dir_variable)
     default_output_dir = os.path.join(base_dir, "partages-models/clm-runs")
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_path", type=str)
     parser.add_argument("data_path", type=str)
-    parser.add_argument("--eval_data_path", type=str)
-    parser.add_argument("--eval_split_name", type=str, default="val")
-    parser.add_argument("--output_dir", type=str, default=default_output_dir)
-    parser.add_argument("--pad_token", type=str, default="<pad>")
+    parser.add_argument("--eval-data-path", type=str)
+    parser.add_argument("--eval-split-name", type=str, default="val")
+    parser.add_argument("--output-dir", type=str, default=default_output_dir)
+    parser.add_argument("--pad-token", type=str, default="<pad>")
     parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--grad_acc", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--grad-acc", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--seed", type=int, default=97531)
     parser.add_argument("--steps", type=int, default=-1)  # replicate TrainingArguments default
-    parser.add_argument("--save_steps", type=int, default=100)
-    parser.add_argument("--log_steps", type=int, default=100)
+    parser.add_argument("--save-steps", type=int, default=100)
+    parser.add_argument("--log-steps", type=int, default=100)
     parser.add_argument("--fsdp-cfg", dest="fsdp_config_path", type=str)
     parser.add_argument("--prec", type=str, choices=tuple(PREC2DTYPE), default="no")
     parser.add_argument("--opt", type=str, default="adamw_torch")
@@ -64,7 +78,7 @@ def parse_arguments():
     parser.add_argument("--gcp", dest="gradient_checkpointing", action="store_true")
     parser.add_argument("--acp", dest="activation_checkpointing", action="store_true")
     parser.add_argument("--prof", action="store_true")
-    parser.add_argument("--no_eval", action="store_true")
+    parser.add_argument("--no-eval", action="store_true")
     return parser.parse_args()
 
 

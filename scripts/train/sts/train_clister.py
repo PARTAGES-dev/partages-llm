@@ -16,19 +16,28 @@ from sentence_transformers.util import cos_sim
 
 from partages_llm.utils import basic_logger_init
 
+DESC="Script for fine-tuning a BERT model on the CLISTER sentence similarity dataset."
+DATAPATH_HELP = "Path to the input .tsv file"
+SEQLEN_HELP = "Sequence length"
+LR_HELP = "Learning rate"
+SKIPEVAL_HELP = "Skip the test set evaluation - training only"
+RETRAIN_HELP = "After test evaluation, continue the model's training on the held-out data. "\
+"This should only be done for models that will be used for other downstream and tasks and "\
+"not evaluated on CLISTER."
+
 
 def parse_arguments():
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_id", type=str)
-    parser.add_argument("data_path", type=str)
-    parser.add_argument("--seq_len", type=int, default=512)
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("data_path", type=str, help=DATAPATH_HELP)
+    parser.add_argument("--seq-len", type=int, default=512, help=SEQLEN_HELP)
+    parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=4)
-    parser.add_argument("--lr", type=float, default=2e-5)
+    parser.add_argument("--lr", type=float, default=2e-5, help=LR_HELP)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output_dir", type=str)
-    parser.add_argument("--skip-eval", action="store_true")
-    parser.add_argument("--retrain", action="store_true")
+    parser.add_argument("--output-dir", type=str)
+    parser.add_argument("--skip-eval", action="store_true", help=SKIPEVAL_HELP)
+    parser.add_argument("--retrain", action="store_true", help=RETRAIN_HELP)
     return parser.parse_args()
 
 

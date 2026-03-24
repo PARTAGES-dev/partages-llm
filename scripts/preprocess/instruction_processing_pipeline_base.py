@@ -10,10 +10,12 @@ from datasets import Dataset
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
 _DATASET_DIR = Path(os.getenv("HOME")) / "partages-llm-data/mcqa"
+DESC = "First step of the pipeline for transforming the labelled MCQA parts "\
+"of PARCOMED into formatted LLM prompts."
 
 
 def parse_arguments():
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=DESC)
     parser.add_argument("-v", "--version", type=int, default=0)
     return parser.parse_args()
 

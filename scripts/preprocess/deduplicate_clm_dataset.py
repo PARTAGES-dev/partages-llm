@@ -19,23 +19,36 @@ from datasets import Dataset, DatasetDict, load_from_disk
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
 _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
+DESC = "Optional step 2 of the preprocessing pipeline for the PARCOMED CLM corpus: "\
+"deduplicates the text using the Onion corpus processing tool."
+NGRAM_HELP = ""
+THRESHOLD_HELP = ""
+BUFFER_HELP = ""
+DOCLIMIT_HELP = ""
+MSPVD_HELP = ""
+Q_HELP = ""
+SIVF_HELP = ""
+SHUFFLECORPUS_HELP = ""
+STATMODE_HELP = ""
+CDC_HELP = ""
+WORKERS_HELP = ""
 
 
 def parse_arguments():
     default_output_dir = str(_DATADIR_BASE / "parcomed")
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("corpus_path", type=str)
-    parser.add_argument("-n", dest="ngram", type=int, nargs="*", default=3)
-    parser.add_argument("-t", dest="threshold", type=float, nargs="*", default=.5)
-    parser.add_argument("-b", dest="buffer", type=int, default=16777216 * 4)
-    parser.add_argument("-l", dest="doc_limit", type=int, default=int(1e9))
-    parser.add_argument("-m", dest="max_sentences_per_vert_doc", type=int, default=100)
-    parser.add_argument("-q", dest="silent", action="store_true")
-    parser.add_argument("-v", dest="save_input_vert_file", action="store_true")
-    parser.add_argument("-s", dest="shuffle_corpus", action="store_true")
-    parser.add_argument("-S", dest="stat_mode", action="store_true")
-    parser.add_argument("-c", dest="clear_ds_cache", action="store_true")
-    parser.add_argument("-w", dest="max_workers", type=int, default=1)
+    parser.add_argument("-n", dest="ngram", type=int, nargs="*", default=3, help=NGRAM_HELP)
+    parser.add_argument("-t", dest="threshold", type=float, nargs="*", default=.5, help=THRESHOLD_HELP)
+    parser.add_argument("-b", dest="buffer", type=int, default=16777216 * 4, help=BUFFER_HELP)
+    parser.add_argument("-l", dest="doc_limit", type=int, default=int(1e9), help=DOCLIMIT_HELP)
+    parser.add_argument("-m", dest="max_sentences_per_vert_doc", type=int, default=100, help=MSPVD_HELP)
+    parser.add_argument("-q", dest="silent", action="store_true", help=Q_HELP)
+    parser.add_argument("-v", dest="save_input_vert_file", action="store_true", help=SIVF_HELP)
+    parser.add_argument("-s", dest="shuffle_corpus", action="store_true", help=SHUFFLECORPUS_HELP)
+    parser.add_argument("-S", dest="stat_mode", action="store_true", help=STATMODE_HELP)
+    parser.add_argument("-c", dest="clear_ds_cache", action="store_true", help=CDC_HELP)
+    parser.add_argument("-w", dest="max_workers", type=int, default=1, help=WORKERS_HELP)
     parser.add_argument("-o", dest="output_dir", type=str, default=default_output_dir)
     return parser.parse_args()
 
