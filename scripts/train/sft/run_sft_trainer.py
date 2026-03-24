@@ -311,7 +311,8 @@ def main():
                 tokenizer=trainer.tokenizer,
                 dataset=trainer.eval_dataset,
                 batch_size=args.eval_batch_size,
-                max_new_tokens=64,
+                max_new_tokens=16,
+                temperature=0.,
                 mcq_answer_pattern=get_mcq_answer_pattern(trainer.eval_dataset),
             )
             run_data = {
@@ -391,6 +392,7 @@ def main():
                         dataset=eval_ds[dataset_name],
                         mcq_answer_pattern=mcq_answer_pattern,
                         batch_size=args.eval_batch_size,
+                        temperature=0.,
                         max_new_tokens=16
                     )
                     logger.info("%s EVAL SET METRICS:\n\t%s", dataset_name.upper(), _metric_disp_str(eval_results_iter["metrics"]))
@@ -403,6 +405,7 @@ def main():
                     dataset=eval_ds,
                     mcq_answer_pattern=mcq_answer_pattern,
                     batch_size=args.eval_batch_size,
+                    temperature=0.,
                     max_new_tokens=16
                 )
                 logger.info("%s EVAL SET METRICS:\n\t%s", args.dataset_name.upper(), _metric_disp_str(eval_results["metrics"]))
