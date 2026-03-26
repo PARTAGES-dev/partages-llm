@@ -357,7 +357,8 @@ def main():
         tokenizer.save_pretrained(trainer.args.output_dir)
         logger.info("Merged model saved @ %s", trainer.args.output_dir)
         
-        with (Path(trainer.args.output_dir) / "script_params.json").open("w") as f:
+        output_dir_path = Path(trainer.args.output_dir)
+        with (output_dir_path / "script_params.json").open("w") as f:
             json.dump(arg_dict, f, indent=4)
         
         ## EVAL ##
@@ -405,7 +406,7 @@ def main():
                     max_new_tokens=16
                 )
                 logger.info("%s EVAL SET METRICS:\n\t%s", args.dataset_name.upper(), _metric_disp_str(eval_results["metrics"]))
-            with (trainer.args.output_dir / "eval-results.json").open("w") as f:
+            with (output_dir_path / "eval-results.json").open("w") as f:
                 json.dump(eval_results, f, indent=4)
 
 
