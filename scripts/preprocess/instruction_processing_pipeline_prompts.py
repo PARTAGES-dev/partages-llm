@@ -1,11 +1,11 @@
 import os
 import json
 from pathlib import Path
-from multiprocessing import cpu_count
-from functools import partial
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from typing import Any, Dict, Union
 from logging import RootLogger
+from multiprocessing import cpu_count
+from functools import partial
 
 from datasets import Dataset, DatasetDict, load_from_disk, enable_progress_bars, disable_progress_bars
 from jinja2 import Environment, FileSystemLoader, Template
@@ -43,23 +43,25 @@ def parse_arguments():
     default_num_workers = cpu_count() // 2
     default_data_dir = os.path.join(os.getenv("HOME"), "partages-llm-data/mcqa/preproc")
 
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("target_task_type", choices={"icl", "sft"})
-    parser.add_argument("-v", "--dataset-version", type=int, default=0)
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("target_task_type", choices={"icl", "sft"}, help=TTT_HELP)
+    parser.add_argument("-v", "--dataset-version", type=int, default=0, help=MAPBS_HELP)
     parser.add_argument("-n", "--nshot", type=int, default=5)
     parser.add_argument("-m", "--max-word-count", type=int)
     parser.add_argument("-w", "--workers", type=int, default=default_num_workers)
-    parser.add_argument("-b", "--map-bs", type=int, default=1)
+    parser.add_argument("-b", "--map-bs", type=int, default=1, help=MAPBS_HELP)
     parser.add_argument(
         "-i", "--template-path-instruction-dynamic",
-        default=default_template_path_instruction_dynamic
+        default=default_template_path_instruction_dynamic,
+        help=DYNAMICTEMPLATE_HELP
     )
     parser.add_argument(
         "-t", "--template-path-instruction-fixed",
-        default=default_template_path_instruction_fixed
+        default=default_template_path_instruction_fixed,
+        help=FIXEDTEMPLATE_HELP
     )
     parser.add_argument("-f", "--template-path-fewshot", default=default_template_path_fewshot)
-    parser.add_argument("-r", "--resample", action="store_true")
+    parser.add_argument("-r", "--resample", action="store_true", help=RESAMPLE_HELP)
     parser.add_argument("--dd", dest="ds_dir", default=default_data_dir)
     parser.add_argument("--seed", type=int, default=13579)
     return parser.parse_args()

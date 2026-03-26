@@ -4,23 +4,27 @@ from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from datetime import datetime
 from functools import partial
-from tqdm import tqdm
 from typing import Any, Dict
 
 from datasets import load_from_disk
+from tqdm import tqdm
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 from partages_llm.processing import clean_text
 
 _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
+URV_HELP = "Include this flag to use the version of the corpus that includes documents not "\
+"licensed for downstream commercial use (the 'research only' version)"
+WORKERS_HELP = "The number of parallel processes to use in applyint the text cleaning function"
+WCM_HELP = "The number of valid words a document has to have to be included in the output"
 
 
 def parse_arguments():
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-v", "--dataset-version", type=int, default=0)
-    parser.add_argument("-r", "--use-research-version", action="store_true")
-    parser.add_argument("-w", "--workers", type=int, default=16)
-    parser.add_argument("-m", "--word-check-min", type=int, default=3)
+    parser.add_argument("-r", "--use-research-version", action="store_true", help=URV_HELP)
+    parser.add_argument("-w", "--workers", type=int, default=16, help=WORKERS_HELP)
+    parser.add_argument("-m", "--word-check-min", type=int, default=3, help=WCM_HELP)
     return parser.parse_args()
 
 

@@ -1,3 +1,5 @@
+"""Builder functions for lm-evaluation-harness configuration
+"""
 import json
 from pathlib import Path
 from collections import defaultdict

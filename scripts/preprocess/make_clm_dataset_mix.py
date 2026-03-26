@@ -31,7 +31,7 @@ def default_filepath_args():
 
 def parse_arguments():
     defaults = default_filepath_args()
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     for pathtype in ("base", "transbio", "parallel", "config", "output"):
         parser.add_argument(
             f"--{pathtype}-path",

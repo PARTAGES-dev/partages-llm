@@ -1,7 +1,7 @@
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from tqdm import tqdm
 from collections import defaultdict
+from tqdm import tqdm
 
 from datasets import Dataset
 from peft import PeftModelForCausalLM
@@ -109,6 +109,28 @@ def mcqa(
     inspect_responses_live: bool = False,
     return_all_outputs: bool = False,
 ) -> Dict[str, Any]:
+    """
+    Evaluates a Causal Language Model on the MCQA dataset provided.
+
+    Args:
+        model: The model to evaluate (should already be loaded onto a GPU)
+        tokenizer: The corresponding tokenizer.
+        dataset: Tokenized MCQA dataset, containing features corresponding to the model's
+            expected input keys. 
+        batch_size: Number of questions for which to run generation at a time.
+        max_new_tokens: Ceiling on the number of tokens to generate for each question.
+        mcq_answer_pattern: Regex to use to extract answers from generated text.
+        answer_split_token: String that marks the beginning of the model's generation from
+            the end of the prompt (usually the `<assistant>` token or equivalent)
+        temperature: Randomness parameter.
+        top_p: Percentage threshold for sampling.
+        inspect_responses_live: Print the model's answers to the terminal as they're generated.
+        return_all_outputs: Include generated text in the returned data, rather than the metrics
+            only.
+
+    Returns:
+        A dictionary with Exact-Match Accuracy, Precision, Recall and F1 scores for the evaluation.
+    """
     
     ## SETUP ##
     generation_input_keys = "input_ids", "attention_mask"

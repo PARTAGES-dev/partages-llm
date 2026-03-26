@@ -127,8 +127,29 @@ def generate_concatenated_tokenized_ds(
     stride: Optional[int] = None,
     return_remainder: Optional[bool] = True,
     minimum_remainder: Optional[int] = 5,
-    verbose: Optional[bool] = False
 ):
+    """
+    Generator function intended for use with the `Dataset.from_generator` function.
+    Takes a tokenized dataset and homogenises the lengths of it's sequences by
+    concatenating them. Sequences are concatenated until their total length overflows
+    the specified maximum, then truncated for the process to repeat.
+
+    Args:
+        ds: Input dataset - should at least have an `input_ids` feature.
+        sequence_length: Target length for the token sequences.
+        bos_token_id: Special token ID for the beginning of sequences.
+        space_id: Token ID for the space character - this is required for more sensible
+            truncation.
+        eos_token_id: Special token ID for the end of sequences.
+        stride: The size of the overlap to allow between truncated sections of the same
+            input sequence.
+        return_remainder: Whether to return the final sequence in the dataset when it is
+            shorter than the target length
+        minimum_remainder: Minimum size to consider for the aforementioned final sequence.
+    
+    Returns:
+        A concatenated version of the input dataset.
+    """
     output_encoding = partial(_enc_default_dict_init, bos_token_id=bos_token_id)
     output_check = partial(_check_token_yield, target_length=sequence_length)
     intermediate_tokens = _token_dict(space_id, 0)

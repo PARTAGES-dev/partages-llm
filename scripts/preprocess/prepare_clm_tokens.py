@@ -2,7 +2,7 @@ import os
 import json
 import traceback
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from functools import partial
 from datetime import datetime
 
@@ -12,17 +12,41 @@ from transformers import AutoTokenizer
 from partages_llm.utils import basic_logger_init
 from partages_llm.processing import ValidationSplitConfig, get_tokenized_ds_features, generate_concatenated_tokenized_ds
 
-_DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
+_DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 _DS_CACHE =  _DATADIR_BASE / "hf-cache"
 _DATASET_TYPE2DIR = {
     "original": "com",
     "clean": "com-clean",
-    "both": "com-clean-dedup",
+    "dedup": "com-clean-dedup",
     "mix": "mix"
 }
 _EXCLUDE_SOURCES = [
     'WMT16'
 ]
+
+DESCRIPTION = "Step 1 of the preprocessing pipeline for the PARCOMED CLM corpus."
+DATASETTYPE_HELP = "The variant of the PARCOMED dataset to be processed. "\
+"This will determine the subirectory of the data directory where the script "\
+"will look for the input dataset. Options: "\
+"original: unprocessed corpus "\
+"| clean: output of `clean_clm_dataset` "\
+"| dedup: output of `clean_clm_dataset` followed by `deduplicate_clm_dataset` "\
+"| mix: output of `make_clm_dataset_mix`"
+MML_HELP = ""
+MINLENGTH_HELP = "Lower bound on the number of tokens in a processed sequence "\
+"to consider. Note that this inludes special tokens, but not padding."
+WORKERS_HELP = "Number of parallel processes to use in the mapping and filtering "\
+"functions."
+ESC_HELP = "Path to a JSON file specifying the parameters to use for the train/"\
+"validation split."
+OVERFLOW_HELP = "When truncating sequences, the last n tokens, n determined by "\
+"`stride`, will be included in the subsequent sequence."
+CONCATENATE_HELP = "Include this flag to concatenate adjacent documents into "\
+"contiguous sequences - this ensures that all sequences (except potentially the "\
+"last one) will have the same length."
+URV_HELP = "Include this flag to use the version of the corpus that includes documents not "\
+"licensed for downstream commercial use (the 'research only' version)"
+CTMN_HELP = "Use a shortened version of the tokenizer name for the output dataset."
 
 
 def parse_arguments():
@@ -31,22 +55,22 @@ def parse_arguments():
         os.path.dirname(__file__), os.pardir,
         "configs/clm-corpus-processing/validation-set-config.json"
     ))
-    parser = ArgumentParser()
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("tokenizer_name_or_path")
     parser.add_argument("-v", "--dataset-version", type=int, default=0)
-    parser.add_argument("-t", "--dataset-type", choices=tuple(_DATASET_TYPE2DIR), default="original")
-    parser.add_argument("-l", "--model-max-length", type=int, default=2048)
-    parser.add_argument("-m", "--min-length", type=int, default=5)
+    parser.add_argument("-t", "--dataset-type", choices=tuple(_DATASET_TYPE2DIR), default="original", help=DATASETTYPE_HELP)
+    parser.add_argument("-l", "--model-max-length", type=int, default=2048, help=MML_HELP)
+    parser.add_argument("-m", "--min-length", type=int, default=5, help=MINLENGTH_HELP)
     parser.add_argument("-o", "--output-dir", default=default_output_dir)
-    parser.add_argument("-w", "--workers", type=int, default=16)
+    parser.add_argument("-w", "--workers", type=int, default=16, help=WORKERS_HELP)
     parser.add_argument("-p", "--pad-token", default="<pad>")
     parser.add_argument("-b", "--bos-token")
-    parser.add_argument("-d", "--eval-set-config-path", type=Path, default=default_eval_set_config_path)
-    parser.add_argument("-f", "--overflow", action="store_true")
-    parser.add_argument("-C", "--concatenate", action="store_true")
+    parser.add_argument("-d", "--eval-set-config-path", type=Path, default=default_eval_set_config_path, help=ESC_HELP)
+    parser.add_argument("-f", "--overflow", action="store_true", help=OVERFLOW_HELP)
+    parser.add_argument("-C", "--concatenate", action="store_true", help=CONCATENATE_HELP)
     parser.add_argument("-s", "--stride", type=int, default=4)
-    parser.add_argument("-r", "--use-research-version", action="store_true")
-    parser.add_argument("-c", "--cut-tokenizer-model-name", action="store_true")
+    parser.add_argument("-r", "--use-research-version", action="store_true", help=URV_HELP)
+    parser.add_argument("-c", "--cut-tokenizer-model-name", action="store_true", help=CTMN_HELP)
     return parser.parse_args()
 
 
@@ -264,7 +288,7 @@ def build_tokenized_dataset(args, logger):
 
 
 def main():
-    logger = basic_logger_init()
+    # logger = basic_logger_init()
     args = parse_arguments()
     try:
         build_tokenized_dataset(args, logger)

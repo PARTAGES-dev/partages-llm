@@ -8,34 +8,51 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from typing import Any, Dict, Optional, Union
 from _io import TextIOWrapper
 from logging import RootLogger
-from tqdm import tqdm
-from lxml import etree
 from uuid import uuid4
 from functools import partial
 from itertools import product, repeat
 
 from datasets import Dataset, DatasetDict, load_from_disk
+from tqdm import tqdm
+from lxml import etree
 
 from partages_llm.utils import basic_logger_init, make_version_subdir_path
 
 _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
+DESC = "Optional step 2 of the preprocessing pipeline for the PARCOMED CLM corpus: "\
+"deduplicates the text using the Onion corpus processing tool."
+NGRAM_HELP = "Length of n-grams to compare"
+THRESHOLD_HELP = "Similarity threshold to define duplication"
+BUFFER_HELP = "Set buffer size in bytes"
+DOCLIMIT_HELP = "Ceiling on the number of documents to include"
+MSPVD_HELP = "Ceiling on the number of sentences to include in each .vert file to "\
+"input to onion"
+Q_HELP = "Suppress terminal output"
+SIVF_HELP = "Save the file(s) passed to onion; default is to keep in a temporary "\
+"directory that is deleted when the run wraps up"
+SHUFFLECORPUS_HELP = "Randomly shuffles the dataset before launching processing"
+STATMODE_HELP = "Runs the script in `statistics mode` - doesn't write any data to "\
+"disk, just collects measurements on how much the input is compressed for a range "\
+"of parameters (multiple )"
+CDC_HELP = "Remove the buildup of datasets library cache files from the output directory"
+WORKERS_HELP = "Ceiling on the number of parallel processes to run in statistics mode"
 
 
 def parse_arguments():
     default_output_dir = str(_DATADIR_BASE / "parcomed")
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("corpus_path", type=str)
-    parser.add_argument("-n", dest="ngram", type=int, nargs="*", default=3)
-    parser.add_argument("-t", dest="threshold", type=float, nargs="*", default=.5)
-    parser.add_argument("-b", dest="buffer", type=int, default=16777216 * 4)
-    parser.add_argument("-l", dest="doc_limit", type=int, default=int(1e9))
-    parser.add_argument("-m", dest="max_sentences_per_vert_doc", type=int, default=100)
-    parser.add_argument("-q", dest="silent", action="store_true")
-    parser.add_argument("-v", dest="save_input_vert_file", action="store_true")
-    parser.add_argument("-s", dest="shuffle_corpus", action="store_true")
-    parser.add_argument("-S", dest="stat_mode", action="store_true")
-    parser.add_argument("-c", dest="clear_ds_cache", action="store_true")
-    parser.add_argument("-w", dest="max_workers", type=int, default=1)
+    parser.add_argument("-n", dest="ngram", type=int, nargs="*", default=3, help=NGRAM_HELP)
+    parser.add_argument("-t", dest="threshold", type=float, nargs="*", default=.5, help=THRESHOLD_HELP)
+    parser.add_argument("-b", dest="buffer", type=int, default=16777216 * 4, help=BUFFER_HELP)
+    parser.add_argument("-l", dest="doc_limit", type=int, default=int(1e9), help=DOCLIMIT_HELP)
+    parser.add_argument("-m", dest="max_sentences_per_vert_doc", type=int, default=100, help=MSPVD_HELP)
+    parser.add_argument("-q", dest="silent", action="store_true", help=Q_HELP)
+    parser.add_argument("-v", dest="save_input_vert_file", action="store_true", help=SIVF_HELP)
+    parser.add_argument("-s", dest="shuffle_corpus", action="store_true", help=SHUFFLECORPUS_HELP)
+    parser.add_argument("-S", dest="stat_mode", action="store_true", help=STATMODE_HELP)
+    parser.add_argument("-c", dest="clear_ds_cache", action="store_true", help=CDC_HELP)
+    parser.add_argument("-w", dest="max_workers", type=int, default=1, help=WORKERS_HELP)
     parser.add_argument("-o", dest="output_dir", type=str, default=default_output_dir)
     return parser.parse_args()
 
@@ -207,7 +224,7 @@ def main():
         if isinstance(ds, DatasetDict):
             ds = ds["train"]
         if args.shuffle_corpus:
-            ds = ds.shuffle(seed=0)
+            ds = ds.shuffle(seed=976431)
         vert_file_path_input = None
         logger.info("Dataset loaded:\n%s", repr(ds))
     elif os.path.isfile(args.corpus_path) and args.corpus_path.endswith(".vert"):
