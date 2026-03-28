@@ -2,7 +2,7 @@ import os
 import json
 from uuid import uuid4
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 import pandas as pd
 from datasets import Dataset
@@ -14,7 +14,7 @@ DESC = "First step of the pipeline for transforming the labelled MCQA parts "\
 "of PARCOMED into formatted LLM prompts."
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     parser = ArgumentParser(description=DESC)
     parser.add_argument("-v", "--version", type=int, default=0)
     return parser.parse_args()

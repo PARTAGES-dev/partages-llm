@@ -1,8 +1,8 @@
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from typing import Any, Dict, Union
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
+from typing import Any, Dict, List, Union
 from logging import RootLogger
 from multiprocessing import cpu_count
 from functools import partial
@@ -24,7 +24,7 @@ RESAMPLE_HELP="This only applies when `target_task_type==icl` and `nshot>0`; by 
 "be sampled for each prompt"
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     here = os.path.dirname(__file__)
     config_dir = os.path.normpath(
         os.path.join(
@@ -67,7 +67,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_instruction_template(template_path: str):
+def get_instruction_template(template_path: str) -> Template:
     """
     Utility function for Jinja2 templates.
     """
@@ -76,7 +76,7 @@ def get_instruction_template(template_path: str):
     return jinja_env.get_template(template_file_name)
 
 
-def filter_func(x: Dict[str, Any], source: str, split: str="validation"):
+def filter_func(x: Dict[str, Any], source: str, split: str="validation") -> bool:
     """
     Returns a boolean inclusion indicator based on the metadata arguments provided. 
     """
@@ -85,7 +85,7 @@ def filter_func(x: Dict[str, Any], source: str, split: str="validation"):
     return sourcecheck and splitcheck
 
 
-def _build_instruction(output: str, speciality: str, template: Union[str, Template]):
+def _build_instruction(output: str, speciality: str, template: Union[str, Template]) -> str:
     if isinstance(template, Template):  # MEDIQAL
         num_correct_answers = len(output.replace("\n", "").split(","))
         multiple_correct_answers = num_correct_answers > 1
@@ -98,12 +98,20 @@ def _build_instruction(output: str, speciality: str, template: Union[str, Templa
     return instruction
 
 
-def build_instruction(output: str, speciality: str, template: Union[str, Template]):
+def build_instruction(
+    output: str,
+    speciality: str,
+    template: Union[str, Template]
+) -> Dict[str, str]:
     instruction = _build_instruction(output, speciality, template)
     return {"instruction": instruction}
 
 
-def build_instruction_batched(output: str, speciality: str, template: Union[str, Template]):
+def build_instruction_batched(
+    output: str,
+    speciality: str,
+    template: Union[str, Template]
+) -> Dict[str, List[str]]:
     function = partial(_build_instruction, template=template)
     instructions = map(lambda x: function(*x), zip(output, speciality))
     return {"instruction": list(instructions)}
@@ -116,7 +124,7 @@ def sample_examples(
     instruction_map_kwargs: Dict[str, Any],
     seed: int,
     disable_tqdm: bool=False
-):
+) -> str:
     """
     Samples `num_examples` instances from the dataset `ds` to be used as few-shot examples.
     """
@@ -137,7 +145,10 @@ def sample_examples(
     return formatted_text
 
 
-def resample_wrap(instruction: Union[str, Dict[str, str]], **kwargs):
+def resample_wrap(
+    instruction: Union[str, Dict[str, str]],
+    **kwargs
+) -> Dict[str, List[Dict[str, str]]]:
     fewshot_interstitial_text = sample_examples(**kwargs)
     prompt_instance = instruction_to_prompt_completion(
         instruction=instruction,
@@ -146,7 +157,7 @@ def resample_wrap(instruction: Union[str, Dict[str, str]], **kwargs):
     return prompt_instance
 
 
-def prompt_word_count_map_func(instance: Dict[str, str]):
+def prompt_word_count_map_func(instance: Dict[str, str]) -> Dict[str, int]:
     return {"word_count": sum(len(turn["content"].split()) for turn in instance["prompt"])}
 
 

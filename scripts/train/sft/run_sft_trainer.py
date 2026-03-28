@@ -3,16 +3,28 @@ import gc
 import json
 import warnings
 import traceback
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter,Namespace
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Tuple, Union
 from uuid import uuid4
 from datetime import datetime
 from itertools import product
 
 import torch
-import datasets
-from transformers import AutoModelForCausalLM, AutoTokenizer, Gemma3Model, set_seed
+from datasets import (
+    Dataset,
+    DatasetDict,
+    load_from_disk,
+    concatenate_datasets
+)
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedModel,
+    PreTrainedTokenizerFast,
+    Gemma3Model,
+    set_seed
+)
 from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
 
@@ -23,7 +35,7 @@ from partages_llm.eval.mcqa import mcqa
 _DATASET_NAMES = "frenchmedmcqa", "mediqal"
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     home = os.getenv("HOME")
     default_output_dir = os.path.join(home, "partages-models/sft-runs/")
     default_data_dir = os.path.join(home, "partages-llm-data/sft")
@@ -66,7 +78,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def load_model(model_path, pad_token=None):
+def load_model(model_path, pad_token=None) -> Tuple[PreTrainedModel, PreTrainedTokenizerFast]:
     base_model = AutoModelForCausalLM.from_pretrained(model_path)
     if isinstance(base_model, Gemma3Model):
         base_model = base_model.language_model  # we only want the text model
@@ -80,20 +92,20 @@ def load_model(model_path, pad_token=None):
     return base_model, tokenizer
 
 
-def load_datasets():
+def load_datasets() -> Tuple[Dataset, Dataset]:
     ds_dir = Path(args.ds_dir) / ("v" + str(args.dataset_version))
     assert ds_dir.exists(), f"{ds_dir} not found"
     if args.dataset_name:
-        ds = datasets.load_from_disk(ds_dir / args.dataset_name)
+        ds = load_from_disk(ds_dir / args.dataset_name)
         train_ds = ds["train"]
         eval_ds = ds["validation"]
     else:
-        ds_load_dict = {fp.name: datasets.load_from_disk(fp) for fp in ds_dir.glob("*/")}
+        ds_load_dict = {fp.name: load_from_disk(fp) for fp in ds_dir.glob("*/")}
         assert set(ds_load_dict) == set(_DATASET_NAMES), f"Unexpected dataset name found in {list(ds_load_dict)}"
-        train_ds = datasets.concatenate_datasets(
+        train_ds = concatenate_datasets(
             [ds_["train"] for ds_ in ds_load_dict.values()]
         ).shuffle(seed=args.seed)
-        eval_ds = datasets.DatasetDict({
+        eval_ds = DatasetDict({
             name: ds_["validation"] for name, ds_ in ds_load_dict.items()
         })
     if args.ndocs:
@@ -110,7 +122,7 @@ def run_training(
     output_dir=None,
     logging_dir=None,
     save_strategy="epoch"
-):
+) -> SFTTrainer:
     if args.target_tokens:
         modules_to_save = None
         outputs = set(map(lambda x: x[0]["content"].replace("\n", ""), train_ds["completion"]))  # set of answers
@@ -198,7 +210,7 @@ def run_hps_iter(
     iter_idx: int,
     output_dir_path: Path,
     hp_kwargs: Dict[str, Any],
-    ds: datasets.Dataset,
+    ds: Dataset,
     bs_adjustments: int,
 ) -> Union[SFTTrainer, int, type(None)]:
     """
@@ -380,7 +392,7 @@ def main():
             )
             def _metric_disp_str(metric_dict):
                 return "\n\t".join(f"{k.upper()} = {round(v * 100, 2)}" for k, v in metric_dict.items())
-            if isinstance(eval_ds, datasets.DatasetDict):
+            if isinstance(eval_ds, DatasetDict):
                 # run eval on both datasets
                 eval_results = {}
                 for dataset_name in eval_ds:

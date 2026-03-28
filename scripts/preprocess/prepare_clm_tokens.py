@@ -2,11 +2,13 @@ import os
 import json
 import traceback
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
+from typing import Callable, Optional, Union
+from logging import RootLogger
 from functools import partial
 from datetime import datetime
 
-from datasets import Dataset, DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, Features, load_from_disk
 from transformers import AutoTokenizer
 
 from partages_llm.utils import basic_logger_init
@@ -24,7 +26,7 @@ _EXCLUDE_SOURCES = [
     'WMT16'
 ]
 
-DESCRIPTION = "Step 1 of the preprocessing pipeline for the PARCOMED CLM corpus."
+DESC = "Step 1 of the preprocessing pipeline for the PARCOMED CLM corpus."
 DATASETTYPE_HELP = "The variant of the PARCOMED dataset to be processed. "\
 "This will determine the subirectory of the data directory where the script "\
 "will look for the input dataset. Options: "\
@@ -49,7 +51,7 @@ URV_HELP = "Include this flag to use the version of the corpus that includes doc
 CTMN_HELP = "Use a shortened version of the tokenizer name for the output dataset."
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     default_output_dir = str(_DATADIR_BASE / "tokens")
     default_eval_set_config_path = os.path.normpath(os.path.join(
         os.path.dirname(__file__), os.pardir,
@@ -74,7 +76,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def filter_tokenized_ds(ds: Dataset, min_length: int):
+def filter_tokenized_ds(ds: Dataset, min_length: int) -> Dataset:
     """
     Removes all instances shorter than `min_length` from the dataset
     """
@@ -85,28 +87,29 @@ def filter_tokenized_ds(ds: Dataset, min_length: int):
     return Dataset.from_pandas(df_filtered, preserve_index=False)
 
 
-def make_val_split(ds, config, logger=None):
+def make_val_split(ds, config, logger=None) -> Dataset:
     disp = logger.info if logger else print
     if config is None:
         return ds
     disp("Creating validation split")
     test_size = config.num_validation_docs if config.num_validation_docs else config.proportion
-    return ds.class_encode_column("source").train_test_split(
+    class_encoded_ds = ds.class_encode_column("source").train_test_split(
         test_size=test_size,
         stratify_by_column="source",
         seed=config.seed
     )
+    return class_encoded_ds
 
 
 def run_tokenization(
-    dataset_or_path,
-    tokenize_func,
-    overflow,
-    num_proc,
-    features,
-    min_length,
-    concatenate_generator_func,
-    logger=None
+    dataset_or_path: Union[str, Path, Dataset, DatasetDict],
+    tokenize_func: Callable,
+    overflow: int,
+    num_proc: int,
+    features: Features,
+    min_length: int,
+    concatenate_generator_func: Callable,
+    logger: Optional[RootLogger] = None
 ):
     """
     Core tokenization logic - handles the tokenizer call, length-based filtering
@@ -188,7 +191,7 @@ def run_tokenization(
     return tokenized_ds_output
     
 
-def build_tokenized_dataset(args, logger):
+def build_tokenized_dataset(args: Namespace, logger: RootLogger):
     ### general args/metadata setup
     arg_dict = vars(args)
     if args.eval_set_config_path:
@@ -282,7 +285,7 @@ def build_tokenized_dataset(args, logger):
         logger
     )
     tokenized_ds_dir.mkdir(parents=True, exist_ok=True)
-    disp("Writing tokenized dataset to disk @ %s" % tokenized_ds_dir)
+    logger.info("Writing tokenized dataset to disk @ %s" % tokenized_ds_dir)
     processed_ds.save_to_disk(tokenized_ds_dir)
 
     ### wrapping up
@@ -295,7 +298,7 @@ def build_tokenized_dataset(args, logger):
 
 
 def main():
-    # logger = basic_logger_init()
+    logger = basic_logger_init()
     args = parse_arguments()
     try:
         build_tokenized_dataset(args, logger)

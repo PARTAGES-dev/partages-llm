@@ -2,6 +2,7 @@
 """
 import json
 from pathlib import Path
+from typing import List
 from collections import defaultdict
 
 import pandas as pd
@@ -22,7 +23,7 @@ def bio_instruct_qa_fr(
     input_path: Path,
     output_path: Path,
     return_data: bool = False
-):
+) -> List[Path]:
     with input_path.open(encoding="utf-8") as f:
         json_data = json.load(f)
     grouped_by_corpus = defaultdict(list)
@@ -63,7 +64,7 @@ def clister(
     input_path: Path,
     output_path: Path,
     return_data: bool = False
-):
+) -> Path:
     df = pd.read_csv(input_path, sep="\t")
     if return_data:
         return df.to_dict(orient="records")
@@ -80,7 +81,7 @@ def e3c(
     input_path: Path,
     output_path: Path,
     return_data: bool = False
-):
+) -> Path:
     with input_path.open(encoding="utf-8") as f:
         json_data = json.load(f)
     output_data = []
@@ -109,7 +110,7 @@ def frenchmedmcqa(
     input_path: Path,
     output_path: Path,
     return_data: bool = False
-):
+) -> Path:
     with input_path.open(encoding="utf-8") as f:
         json_data = json.load(f)
     output_data = []

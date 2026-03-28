@@ -92,7 +92,7 @@ def gather_lm_eval_results_by_domain(
     base_model_name_only: bool = False,
     existing_results: Optional[pd.DataFrame] = None,
     verbose: bool = False
-) -> type(None):
+) -> pd.DataFrame:
     all_results = []
     if isinstance(input_dir, str):
         input_dir = [input_dir]

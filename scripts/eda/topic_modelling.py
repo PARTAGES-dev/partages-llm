@@ -47,7 +47,7 @@ PAIRWISE={"cityblock", "cosine", "euclidean", "l1", "l2", "manhattan", "nan_eucl
 EXCLUDE_SOURCES = ['WMT16']
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     default_output_dir = os.path.join(_DATADIR_BASE, "topic-modelling")
     default_prompt_template_file = os.path.join(_DATADIR_BASE, "config/templates/topic-modelling-prompt-v0.jinja")
     parser = argparse.ArgumentParser(

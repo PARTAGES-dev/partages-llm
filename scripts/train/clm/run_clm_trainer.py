@@ -6,10 +6,11 @@ from datetime import datetime
 from uuid import uuid4
 from functools import partial
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from typing import Tuple
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 
 import torch
-import datasets
+from datasets import Dataset, DatasetDict, load_from_disk
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -51,7 +52,7 @@ SCHED_HELP = "Learning rate scheduling system."
 PB_HELP = "Show a progress bar for training."
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     base_dir_variable = "WORK" if IDRIS else "HOME"
     base_dir = os.getenv(base_dir_variable)
     default_output_dir = os.path.join(base_dir, "partages-models/clm-runs")
@@ -82,7 +83,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def ndnt(k: int):
+def ndnt(k: int) -> str:
     """
     Helper function for logger readability; shortcut for indenting lines
 
@@ -91,7 +92,7 @@ def ndnt(k: int):
     return "\n" + "\t" * k
 
 
-def get_torch_rank():
+def get_torch_rank() -> int:
     """
     Return the current process rank 
 
@@ -102,7 +103,7 @@ def get_torch_rank():
     return int(os.environ.get("RANK", "0"))
 
 
-def get_torch_local_rank():
+def get_torch_local_rank() -> int:
     """
     Return the current process rank local to the node
     (i.e. identify the current GPU among the other GPUs on
@@ -115,7 +116,7 @@ def get_torch_local_rank():
     return int(os.environ.get("LOCAL_RANK", "0"))
 
 
-def is_local_main_process():
+def is_local_main_process() -> bool:
     """
     Is the current process the main process for this node?
 
@@ -124,7 +125,7 @@ def is_local_main_process():
     return get_torch_local_rank() == 0
 
 
-def is_main_process():
+def is_main_process() -> bool:
     """
     Is the current process the overall main process for this job?
 
@@ -133,7 +134,7 @@ def is_main_process():
     return get_torch_rank() == 0
 
 
-def setup_training_arguments(args, logger):
+def setup_training_arguments(args, logger) -> TrainingArguments:
     try:
         use_fsdp = os.path.isfile(args.fsdp_config_path)
     except TypeError:
@@ -176,7 +177,7 @@ def setup_training_arguments(args, logger):
     dataloader_num_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", "0"))
     local_rank = get_torch_local_rank()
     disable_tqdm = not args.pb
-    return TrainingArguments(
+    training_args = TrainingArguments(
         output_dir=output_dir,
         eval_strategy=eval_strategy,
         eval_steps=args.log_steps,
@@ -205,17 +206,18 @@ def setup_training_arguments(args, logger):
         save_only_model=True,
         report_to="tensorboard",
     )
+    return training_args
 
 
-def load_datasets():
+def load_datasets() -> Tuple[Dataset, Dataset]:
     logger.info("Loading dataset from %s", args.data_path)
-    tokenized_ds = datasets.load_from_disk(args.data_path)
+    tokenized_ds = load_from_disk(args.data_path)
     logger.info("Dataset loaded: %d rows", tokenized_ds.num_rows)
     tokenized_ds_eval = None
     if args.eval_data_path:
         logger.info("Loading evaluation dataset from %s", args.eval_data_path)
         try:
-            tokenized_ds_eval = datasets.load_from_disk(args.eval_data_path)
+            tokenized_ds_eval = load_from_disk(args.eval_data_path)
         except FileNotFoundError:
             logger.warning("Evaluation dataset %s not found; turning off evaluation step", args.eval_data_path)
             setattr(args, "no_eval", True)
@@ -227,7 +229,7 @@ def load_datasets():
         except KeyError:
             logger.warning("Evaluation split `%s` not found in dataset; turning off evaluation step", args.eval_split_name)
             setattr(args, "no_eval", True)
-    if isinstance(tokenized_ds, datasets.DatasetDict):
+    if isinstance(tokenized_ds, DatasetDict):
         tokenized_ds = tokenized_ds["train"]
     logger.info("Training dataset: \n%s", repr(tokenized_ds))
     if tokenized_ds_eval is not None:
@@ -235,7 +237,7 @@ def load_datasets():
     return tokenized_ds, tokenized_ds_eval
 
 
-def run_training(train_args, train_ds, eval_ds):
+def run_training(train_args: TrainingArguments, train_ds: Dataset, eval_ds: Dataset):
     logger.info("Initialising model + tokenizer")
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,

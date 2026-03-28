@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from datetime import datetime
 from functools import partial
 from typing import Any, Dict
@@ -19,7 +19,7 @@ WORKERS_HELP = "The number of parallel processes to use in applyint the text cle
 WCM_HELP = "The number of valid words a document has to have to be included in the output"
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-v", "--dataset-version", type=int, default=0)
     parser.add_argument("-r", "--use-research-version", action="store_true", help=URV_HELP)
@@ -28,7 +28,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def text_cleaner_map(instance: Dict[str, Any], word_check_min: int):
+def text_cleaner_map(instance: Dict[str, Any], word_check_min: int) -> str:
     return clean_text(instance["text"], strict=True, word_check_min=word_check_min)
 
 

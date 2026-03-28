@@ -3,7 +3,8 @@ import sys
 import inspect
 import logging
 import importlib.util
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+from types import ModuleType
 from pathlib import Path
 from contextlib import contextmanager
 from functools import wraps
@@ -39,7 +40,7 @@ def ignored(*exceptions: Exception):
         pass
 
 
-def basic_logger_init(lvl: str="info"):
+def basic_logger_init(lvl: str="info") -> logging.RootLogger:
     logger = logging.getLogger()
     logfmt = "%(asctime)s - %(levelname)-8s - %(message)s"
     level = getattr(logging, lvl.upper())
@@ -52,7 +53,7 @@ def basic_logger_init(lvl: str="info"):
     return logger
 
 
-def get_function_origin_info(func: Callable):
+def get_function_origin_info(func: Callable) -> Bunch:
     info = {
         "name": func.__name__,
         "module": func.__module__,
@@ -69,7 +70,7 @@ def make_version_subdir_path(
     make: bool=False,
     stem: str="v",
     suffix: Optional[str] = None
-):
+) -> Union[Path, List[str]]:
     existing_versions = list(p.glob(stem + "*/"))
     this_version = max(int(p.name[len(stem):]) for p in existing_versions) + 1 \
         if existing_versions else 0
@@ -84,7 +85,7 @@ def make_version_subdir_path(
     return p_ret
 
 
-def import_from_path(module_name: str, file_path: Union[Path, str]):
+def import_from_path(module_name: str, file_path: Union[Path, str]) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
@@ -92,17 +93,17 @@ def import_from_path(module_name: str, file_path: Union[Path, str]):
     return module
 
 
-def make_answer_mapping(letters: str):
+def make_answer_mapping(letters: str) -> Dict[str, int]:
     return dict(zip(letters, range(len(letters))))
 
 
-def clean_quotes(s: str):
+def clean_quotes(s: str) -> str:
     if s.startswith('"') and s.endswith('"'):
         return s[1:-1]
     return s
 
 
-def get_named_entities(text: List[str], tags: List[int]):
+def get_named_entities(text: List[str], tags: List[int]) -> List[str]:
     result = []
     current_phrase = []
     for i, (token, label) in enumerate(zip(text, tags)):
@@ -121,7 +122,11 @@ def get_named_entities(text: List[str], tags: List[int]):
     return result
 
 
-def sanitize_path(path: Any, default_name: str, check_is_dir: bool = False):
+def sanitize_path(
+    path: Any,
+    default_name: str,
+    check_is_dir: bool = False
+) -> Path:
     if not isinstance(path, Path):
         try:
             spath = Path(path)
@@ -137,7 +142,7 @@ def sanitize_path(path: Any, default_name: str, check_is_dir: bool = False):
 def handle_input_paths(
     input_default: Optional[Union[Path, str]] = None,
     output_default: Optional[Union[Path, str]] = None
-):
+) -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -155,7 +160,7 @@ def handle_input_paths(
     return decorator
 
 
-def format_model_name(model_name: str, base_only: bool = False):
+def format_model_name(model_name: str, base_only: bool = False) -> str:
     s = -2 if base_only else -3
     split_slice = slice(s, -1) if model_name.endswith("__") else slice(s + 1, None)
     return "_".join(model_name.split("__")[split_slice])

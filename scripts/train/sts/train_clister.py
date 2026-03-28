@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from datetime import datetime
 from typing import Optional
 
@@ -26,7 +26,7 @@ RETRAIN_HELP = "After test evaluation, continue the model's training on the held
 "not evaluated on CLISTER."
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_id", type=str)
     parser.add_argument("data_path", type=str, help=DATAPATH_HELP)
@@ -41,7 +41,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def build_train_dataloader(df: pd.DataFrame, batch_size: int):
+def build_train_dataloader(df: pd.DataFrame, batch_size: int) -> DataLoader:
     dataset_list = [
         InputExample(
             texts=[t.id_1, t.id_2],  # pair of input sentences
@@ -58,7 +58,7 @@ def train_sts(
     epochs: int,
     lr: float,
     output_path: Optional[str] = None
-):
+) -> SentenceTransformer:
     # first we load the underlying transformer encoder
     transformer = Transformer(model_id, max_seq_length=seq_len)
     model_input_names = ["input_ids", "attention_mask"]

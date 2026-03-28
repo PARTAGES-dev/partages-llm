@@ -1,5 +1,5 @@
 import json
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from pathlib import Path
 from warnings import warn
 from datetime import datetime
@@ -32,7 +32,7 @@ PEFT_HELP="Indicates that the model should be loaded with the peft library's con
 "the transformers one"
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     dataset_names = "frenchmedmcqa", "mediqal"
     parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("model_path")

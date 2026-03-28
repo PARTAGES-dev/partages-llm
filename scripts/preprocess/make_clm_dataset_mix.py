@@ -1,10 +1,12 @@
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
+from typing import Callable, Dict, Union
+from logging import RootLogger
 from functools import partial
 
-from datasets import DatasetDict, load_dataset, load_from_disk, concatenate_datasets
+from datasets import Dataset, DatasetDict, load_dataset, load_from_disk, concatenate_datasets
 
 from partages_llm.utils import Bunch, basic_logger_init, make_version_subdir_path
 from partages_llm.processing import DataMixConfig
@@ -19,17 +21,18 @@ DESC="Puts togther a version of the PARCOMED corpus consisting of a mix of the b
 "(originally LIMICS/PARTAGES) with TransCorpusBio-FR, ParaDocs, and FineWeb2.0"
 
 
-def default_filepath_args():
-    return Bunch(
+def default_filepath_args() -> Bunch:
+    filepath_args = Bunch(
         base=os.path.join(_DATADIR_BASE, "clm-corpus/com-clean-dedup/v1"),
         transbio=os.path.join(_DATADIR_BASE, "TransCorpus-bio-fr/v0"),
         parallel=os.path.join(_DATADIR_BASE, "paradocs-subsample/1m"),
         config=os.path.join(_HERE, os.pardir, "configs/clm-corpus-processing/data-mix-config.json"),
         output=os.path.join(_DATADIR_BASE, "clm-corpus/mix")
     )
+    return filepath_args
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     defaults = default_filepath_args()
     parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     for pathtype in ("base", "transbio", "parallel", "config", "output"):
@@ -43,7 +46,13 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def subsample_ds(ds, proportion, num_docs_base, seed, logger):
+def subsample_ds(
+    ds: Union[Dataset, DatasetDict],
+    proportion: float,
+    num_docs_base: int,
+    seed: int,
+    logger: RootLogger
+) -> Dataset:
     if isinstance(ds, DatasetDict):
         ds = ds["train"]
     a = int(num_docs_base * proportion)
@@ -57,43 +66,51 @@ def subsample_ds(ds, proportion, num_docs_base, seed, logger):
     return ds.shuffle(seed=seed).take(a)
 
 
-def transbio_column_transform_dict(instance):
-    return {
+def transbio_column_transform_dict(instance) -> Dict[str, str]:
+    dict_ = {
         "source": "TransCorpusBio-fr",
         "subset": "none",
         "doc_id": str(hash(instance["text"]))
     }
+    return dict_
 
 
-def fineweb_column_transform_dict(instance):
-    return {
+def fineweb_column_transform_dict(instance) -> Dict[str, str]:
+    dict_ = {
         "source": "FineWeb2-HQ",
         "subset": "fra_Latn",
         "doc_id": instance["id"]
     }
+    return dict_
 
 
-def parallel_column_transform_dict(instance):
-    return {
+def parallel_column_transform_dict(instance) -> Dict[str, str]:
+    dict_ = {
         "text": f"English: {instance['src']}\nFrench: {instance['tgt']}",
         "source": "paradocs",
         "subset": "en-fr-strict",
         "doc_id": f"{instance['src_docid']}--{instance['tgt_docid']}"
     }
+    return dict_
 
 
-def normalise_dataset(ds, column_transform_dict_func, num_proc):
+def normalise_dataset(
+    ds: Union[Dataset, DatasetDict],
+    column_transform_dict_func: Callable,
+    num_proc: int
+) -> Union[Dataset, DatasetDict]:
     def map_func(instance, update_func):
         instance.update(update_func(instance))
         return instance
     remove_columns = [ftr for ftr in ds.features if ftr not in (
         "text", "source", "subset", "doc_id"
     )]
-    return ds.map(
+    mapped_ds = ds.map(
         partial(map_func, update_func=column_transform_dict_func),
         num_proc=num_proc,
         remove_columns=remove_columns
     )
+    return mapped_ds
 
 
 def main():

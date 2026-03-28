@@ -4,8 +4,8 @@ import tempfile
 import subprocess
 import multiprocessing as mp
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from typing import Any, Dict, Optional, Union
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
+from typing import Any, Dict, List, Optional, Tuple, Union
 from _io import TextIOWrapper
 from logging import RootLogger
 from uuid import uuid4
@@ -38,7 +38,7 @@ CDC_HELP = "Remove the buildup of datasets library cache files from the output d
 WORKERS_HELP = "Ceiling on the number of parallel processes to run in statistics mode"
 
 
-def parse_arguments():
+def parse_arguments() -> Namespace:
     default_output_dir = str(_DATADIR_BASE / "parcomed")
     parser = ArgumentParser(description=DESC, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("corpus_path", type=str)
@@ -57,7 +57,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def vert_doc_template(doc_id: int, name: str, content: str):
+def vert_doc_template(doc_id: int, name: str, content: str) -> str:
     """
     Atomic unit of .vert file content generation.
 
@@ -79,7 +79,7 @@ def vert_doc_template(doc_id: int, name: str, content: str):
     return doc
 
 
-def count_lines(filepath: Union[str, Path]):
+def count_lines(filepath: Union[str, Path]) -> int:
     """
     Simply wraps the bash `wc -l` command in a subprocess and returns the number of lines in the given file 
     
@@ -94,7 +94,7 @@ def count_lines(filepath: Union[str, Path]):
     return int(subprocess.check_output(["wc", "-l", filepath]).split()[0])
 
 
-def template_wo(f_io: TextIOWrapper, doc: Dict[str, Any], idx: int, content: str):
+def template_wo(f_io: TextIOWrapper, doc: Dict[str, Any], idx: int, content: str) -> int:
     """
     Wraps `vert_doc_template` to write the output to disk.
 
@@ -121,7 +121,7 @@ def build_and_write_vert_file(
     doc_limit: int,
     disable_pb: bool, 
     max_sentences_per_vert_doc: int,
-):
+) -> Tuple[Path, int]:
     """
     Preprocessing function for deduplication: builds a file that Onion will accept as input.
 
@@ -159,7 +159,7 @@ def build_and_write_vert_file(
     return vert_file_path_input, vert_docs_count
 
 
-def get_counts_vert(f_io: TextIOWrapper):
+def get_counts_vert(f_io: TextIOWrapper) -> Dict[str, int]:
     """
     Calculates some basic info about the given .vert file.
 
@@ -186,7 +186,7 @@ def run_onion(
     output_dir_path: Path,
     logger: Optional[RootLogger] = None,
     log_prefix: str = ""
-):
+) -> Path:
     """
     Calls the Onion deduplication tool on the filepath provided.
 
@@ -217,7 +217,12 @@ def run_onion(
     return output_path
 
 
-def statmode_func(ngram: int, threshold: int, buffer: int, run_kwargs: Dict[str, Any]):
+def statmode_func(
+    ngram: int,
+    threshold: int,
+    buffer: int,
+    run_kwargs: Dict[str, Any]
+) -> Dict[str, int]:
     """
     Calls Onion without writing to disk: to be used for collecting statistics.
 
@@ -244,7 +249,7 @@ def statmode_func_mp_wrapper(
     buffer: int,
     tmp_path: Path,
     run_kwargs: Dict[str, Any]
-):
+) -> Dict[str, int]:
     """
     Wrapper for `statmode_func` that manages the `run_onion` kwargs for a multiprocessing context.
     
@@ -276,7 +281,7 @@ def vert2xml(
     root_name: str = "corpus",
     disable_pb: bool = False,
     total_lines: Optional[int] = None
-):
+) -> List[str]:
     """
     Converts a .vert file to XML.
 
@@ -314,7 +319,7 @@ def vert2xml(
     return xml_lines
 
 
-def tree_parse_generator(xml_path: Union[str, Path]):
+def tree_parse_generator(xml_path: Union[str, Path]) -> Dict[str, str]:
     """
     Generator function to be passed to `Dataset.from_generator` to build a text dataset from an XML tree.
 
@@ -327,12 +332,13 @@ def tree_parse_generator(xml_path: Union[str, Path]):
     """
     for document in etree.parse(xml_path).findall("doc"):
         metadata = document.attrib["name"].split("__")
-        yield {
+        dict_ = {
             "source": metadata[1],
             "subset": metadata[2],
             "doc_id": metadata[3],
             "text": " ".join(p.text for p in document.findall("p") if p.text)
         }
+        yield dict_
 
 
 def main():
