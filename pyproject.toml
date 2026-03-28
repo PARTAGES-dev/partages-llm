@@ -23,7 +23,7 @@ dependencies = [
     "jinja2",
     "pandas>=2.0.0",
     "transformers>=4.57.1",
-    "peft>=0.17.1",
+    "peft>=0.18.0",
     "hdbscan",
     "umap-learn>=0.5",
     "sentence-transformers>=5.1.2",
@@ -38,4 +38,4 @@ dev = [
 ]
 
 [project.urls]
-Homepage = ""
+Homepage = "https://huggingface.co/PARTAGES-dev"

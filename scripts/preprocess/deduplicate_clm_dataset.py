@@ -182,14 +182,16 @@ def run_onion(
     Returns:
         
     """
+    disp = logger.info if logger else print
     output_path = output_dir_path / "corpus-dedup.vert"
     dedup_cmd = [executable, *opts.split(), str(input_path)]
-    logger.info(
-        "%sRunning deduplication command: %s > %s",
-        log_prefix, " ".join(dedup_cmd), output_path
-    )
-    returncode = subprocess.call(dedup_cmd, stdout=output_path.open("w"))
-    logger.info("%sReturn code %d", log_prefix, returncode)
+    dedup_cmd_str = " ".join(dedup_cmd)
+    disp_args_cmd = log_prefix, dedup_cmd_str, output_path
+    disp("%sRunning deduplication command: %s > %s" % disp_args_cmd)
+    output_path_f = output_path.open("w")
+    returncode = subprocess.call(dedup_cmd, stdout=output_path_f)
+    disp_args_return = log_prefix, returncode
+    disp("%sReturn code %d" % disp_args_return)
     return output_path
 
 
