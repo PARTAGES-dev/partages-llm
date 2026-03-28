@@ -6,8 +6,8 @@ import traceback
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 from typing import Any, Dict, Union
-from datetime import datetime
 from uuid import uuid4
+from datetime import datetime
 from itertools import product
 
 import torch
@@ -356,7 +356,6 @@ def main():
             save_embedding_layers=True
         )
         tokenizer.save_pretrained(trainer.args.output_dir)
-        logger.info("Merged model saved @ %s", trainer.args.output_dir)
         
         output_dir_path = Path(trainer.args.output_dir)
         with (output_dir_path / "script_params.json").open("w") as f:
@@ -411,6 +410,7 @@ def main():
                 logger.info("%s EVAL SET METRICS:\n\t%s", args.dataset_name.upper(), _metric_disp_str(eval_results["metrics"]))
             with (output_dir_path / "eval-results.json").open("w") as f:
                 json.dump(eval_results, f, indent=4)
+        logger.info("Run finished; merged model saved @ %s\n%s", trainer.args.output_dir, "=" * 75)
 
 
 if __name__ == "__main__":

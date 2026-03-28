@@ -82,7 +82,7 @@ def parallel_column_transform_dict(instance):
     }
 
 
-def normalise_ds(ds, column_transform_dict_func, num_proc):
+def normalise_dataset(ds, column_transform_dict_func, num_proc):
     def map_func(instance, update_func):
         instance.update(update_func(instance))
         return instance
@@ -128,7 +128,7 @@ def main():
         json.dump(mix_config_dict, f, indent=4)
      
     makesample = partial(subsample_ds, num_docs_base=base_ds.num_rows, seed=args.seed, logger=logger)
-    normalise_ds_w = partial(normalise_ds, num_proc=args.workers)
+    normalise_ds_mp = partial(normalise_dataset, num_proc=args.workers)
     
     logger.info("Loading TransBio dataset from %s", args.transbio_path)
     if not mix_config.transbio_proportion:
@@ -139,7 +139,7 @@ def main():
             proportion=mix_config.transbio_proportion
         )
         logger.info("Running column normalisation...")
-        ds_list.append(normalise_ds_w(
+        ds_list.append(normalise_ds_mp(
             ds=transbio_subset, column_transform_dict_func=transbio_column_transform_dict
         ))
 
@@ -152,7 +152,7 @@ def main():
             proportion=mix_config.fineweb_proportion
         )
         logger.info("Running column normalisation...")
-        ds_list.append(normalise_ds_w(
+        ds_list.append(normalise_ds_mp(
             ds=fineweb_subset, column_transform_dict_func=fineweb_column_transform_dict
         ))
 
@@ -165,7 +165,7 @@ def main():
             proportion=mix_config.paradocs_proportion
         )
         logger.info("Running column normalisation...")
-        ds_list.append(normalise_ds_w(
+        ds_list.append(normalise_ds_mp(
             ds=parallel_subset, column_transform_dict_func=parallel_column_transform_dict
         ))
 
