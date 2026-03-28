@@ -18,7 +18,7 @@ class ValidationSplitConfig:
 
 @dataclass
 class DataMixConfig:
-    # proportions relative to 1.0 for PARTAGES data
+    # proportions relative to 1.0 for PARCOMED data
     transbio_proportion: float
     fineweb_proportion: float
     paradocs_proportion: float
@@ -147,8 +147,8 @@ def generate_concatenated_tokenized_ds(
             shorter than the target length
         minimum_remainder: Minimum size to consider for the aforementioned final sequence.
     
-    Returns:
-        A concatenated version of the input dataset.
+    Yields:
+        Concatenated token sequences of the specified length.
     """
     output_encoding = partial(_enc_default_dict_init, bos_token_id=bos_token_id)
     output_check = partial(_check_token_yield, target_length=sequence_length)
@@ -201,7 +201,9 @@ def instruction_to_prompt_completion(instruction, interstitial_text="", question
     if isinstance(instruction, str):
         system_content = instruction
         if question is None or output is None:
-            raise ValueError(f"No `question` or `output` attributes provided for prompt construction; type(instruction)={type(instruction)}")
+            in_type = type(instruction)
+            err_msg = f"No `question` or `output` attributes provided for prompt construction; type(instruction)={in_type}"
+            raise ValueError(err_msg)
     else:
         # column mapping
         system_content = instruction["instruction"]
@@ -223,6 +225,14 @@ def instruction_to_prompt_completion(instruction, interstitial_text="", question
 
 
 def get_mcq_answer_pattern(dataset: Dataset):
+    """
+
+    Args:
+        dataset:
+
+    Returns:
+        
+    """
     letters = dataset.map(
         lambda x: {'letters': re.sub(r'[^A-Z]', '', x['completion'][0]['content'])},
         desc="Extracting MCQ answer options",
@@ -246,7 +256,8 @@ def infer_answer_split_tokens_for_text_generation(
     answer_split_idx = final_prompt_element_template_idx + len(original_final_prompt_element)
     split_token_s = templated_prompt[answer_split_idx:]
     templated_col_endswith_split_token = map(lambda s: s.endswith(split_token_s), dataset[templated_col])
-    assert sum(templated_col_endswith_split_token) == len(dataset), f"Not all prompts end with the inferred split token {split_token_s}"
+    assert sum(templated_col_endswith_split_token) == len(dataset), \
+        f"Not all prompts end with the inferred split token {split_token_s}"
     return split_token_s
 
 

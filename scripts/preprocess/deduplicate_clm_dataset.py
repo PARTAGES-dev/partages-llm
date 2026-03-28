@@ -58,6 +58,15 @@ def parse_arguments():
 
 
 def vert_doc_template(doc_id: int, name: str, content: str):
+    """
+
+
+    Args:
+
+
+    Returns:
+
+    """
     doc = f'\n<doc id="{doc_id}" name="{name}">'
     if isinstance(content, list):
         for p in content:
@@ -69,12 +78,28 @@ def vert_doc_template(doc_id: int, name: str, content: str):
 
 
 def count_lines(filepath: Union[str, Path]):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     if not isinstance(filepath, str):
         filepath = str(filepath)
     return int(subprocess.check_output(["wc", "-l", filepath]).split()[0])
 
 
 def template_wo(f_io: TextIOWrapper, doc: Dict[str, Any], idx: int, content: str):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     source = doc.get("source", "partages-wp2")
     subset = doc.get("subset", "train")
     name_elems = f"doc{idx}", source, subset, uuid4().hex
@@ -90,6 +115,14 @@ def build_and_write_vert_file(
     disable_pb: bool, 
     max_sentences_per_vert_doc: int,
 ):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     vert_file_path_input = input_dir_path / "corpus.vert"
     tqdm_total = min(ds.num_rows, doc_limit)
     tqdm_desc = f"Building input file {vert_file_path_input.name}"
@@ -115,6 +148,14 @@ def build_and_write_vert_file(
 
 
 def get_counts_vert(f_io: TextIOWrapper):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     n_docs = n_tokens = n_bytes = 0
     for line in f_io:
         if line.startswith("<doc id="):
@@ -133,6 +174,14 @@ def run_onion(
     logger: Optional[RootLogger] = None,
     log_prefix: str = ""
 ):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     output_path = output_dir_path / "corpus-dedup.vert"
     dedup_cmd = [executable, *opts.split(), str(input_path)]
     logger.info(
@@ -145,6 +194,14 @@ def run_onion(
 
 
 def statmode_func(ngram: int, threshold: int, buffer: int, run_kwargs: Dict[str, Any]):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     opts = f"-qsmn {ngram} -t {threshold} -b {buffer}"
     output_filepath = run_onion(opts=opts, **run_kwargs)
     dedup_output_counts = get_counts_vert(output_filepath.open())
@@ -160,6 +217,14 @@ def statmode_func_mp_wrapper(
     tmp_path: Path,
     run_kwargs: Dict[str, Any]
 ):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     proc = mp.current_process()._identity[0] + process_id_offset
     output_dir_path = tmp_path / f"output-{proc}"
     output_dir_path.mkdir()
@@ -176,6 +241,14 @@ def vert2xml(
     disable_pb: bool = False,
     total_lines: Optional[int] = None
 ):
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
     xml_esc = str.maketrans({
         "\n": " ",
         "<": r"&lt;",
@@ -202,6 +275,14 @@ def vert2xml(
 
 
 def tree_parse_generator(xml_path: Union[str, Path]):
+    """
+
+    Args:
+
+
+    Yields:
+        
+    """
     for document in etree.parse(xml_path).findall("doc"):
         metadata = document.attrib["name"].split("__")
         yield {

@@ -34,7 +34,7 @@ DATASETTYPE_HELP = "The variant of the PARCOMED dataset to be processed. "\
 "| mix: output of `make_clm_dataset_mix`"
 MML_HELP = ""
 MINLENGTH_HELP = "Lower bound on the number of tokens in a processed sequence "\
-"to consider. Note that this inludes special tokens, but not padding."
+"to consider. Note that this includes special tokens, but not padding."
 WORKERS_HELP = "Number of parallel processes to use in the mapping and filtering "\
 "functions."
 ESC_HELP = "Path to a JSON file specifying the parameters to use for the train/"\
