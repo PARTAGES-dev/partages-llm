@@ -1,6 +1,6 @@
 import re
 import warnings
-from typing import Optional, Dict, List, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 from functools import partial
 from dataclasses import dataclass
 
@@ -24,7 +24,11 @@ class DataMixConfig:
     paradocs_proportion: float
 
 
-def _feature_dict(dtype_str: str, ftype: str, names: Optional[List[str]] = None):
+def _feature_dict(
+    dtype_str: str,
+    ftype: str,
+    names: Optional[List[str]] = None
+) -> Dict[str, str]:
     ret = {
         "dtype": dtype_str,
         "_type": ftype
@@ -34,14 +38,18 @@ def _feature_dict(dtype_str: str, ftype: str, names: Optional[List[str]] = None)
     return ret
 
 
-def _feature_dict_seq(dtype_str: str, ftype: str="Value"):
-    return {
+def _feature_dict_seq(
+    dtype_str: str,
+    ftype: str="Value"
+) -> Dict[str, Any]:
+    dict_ = {
         "feature": _feature_dict(dtype_str, ftype),
         "_type": "Sequence"
     }
+    return dict_
 
 
-def get_tokenized_ds_features(class_label_names: Optional[List[str]] = None):
+def get_tokenized_ds_features(class_label_names: Optional[List[str]] = None) -> Features:
     int8_feature = _feature_dict_seq("int8")
     features_dict = {
         "input_ids": _feature_dict_seq("int32"),
@@ -55,28 +63,32 @@ def get_tokenized_ds_features(class_label_names: Optional[List[str]] = None):
     return Features.from_dict(features_dict)
 
 
-def _enc_default_dict_init(bos_token_id: int, data: Optional[TokenEncodingType] = None):
-    d = {
+def _enc_default_dict_init(
+    bos_token_id: int,
+    data: Optional[TokenEncodingType] = None
+) -> TokenEncodingType:
+    dict_ = {
         "input_ids": [bos_token_id],
         "attention_mask": [1],
         "special_tokens_mask": [1]
     }
     if data:
         for k, v in data.items():
-            d[k].extend(v)
-    return d
+            dict_[k].extend(v)
+    return dict_
 
 
-def _enc_len(*enx: TokenEncodingType):
+def _enc_len(*enx: TokenEncodingType) -> int:
     return sum(len(d["input_ids"]) for d in enx)
 
 
-def _token_dict(iid_val: int, stm_val: int):
-    return {
+def _token_dict(iid_val: int, stm_val: int) -> Dict[str, int]:
+    dict_ = {
         "input_ids": iid_val,
         "attention_mask": 1,
         "special_tokens_mask": stm_val
     }
+    return dict_
 
 
 def _generate_subsequences(
@@ -85,7 +97,7 @@ def _generate_subsequences(
     stride: int,
     output_init_fn: Callable,
     eos_tokens: Optional[Dict[str, int]] = None
-):
+) -> Any:
     nonspec_input_token_ids = [
         iid for iid, stm in zip(enc['input_ids'], enc['special_tokens_mask']) if stm == 0
     ]
@@ -107,7 +119,11 @@ def _generate_subsequences(
         yield output_init_fn(data=subsequence_encoding_data)
 
 
-def _check_token_yield(dict_: TokenEncodingType, target_length: int, allow_lt: Optional[bool]=False):
+def _check_token_yield(
+    dict_: TokenEncodingType,
+    target_length: int,
+    allow_lt: Optional[bool]=False
+) -> TokenEncodingType:
     op = "<=" if allow_lt else "=="
     for encoding_key, token_list in dict_.items():
         assert isinstance(token_list, list), f"{encoding_key} not a list: {token_list}"
@@ -127,7 +143,7 @@ def generate_concatenated_tokenized_ds(
     stride: Optional[int] = None,
     return_remainder: Optional[bool] = True,
     minimum_remainder: Optional[int] = 5,
-):
+) -> TokenEncodingType:
     """
     Generator function intended for use with the `Dataset.from_generator` function.
     Takes a tokenized dataset and homogenises the lengths of it's sequences by
@@ -164,12 +180,12 @@ def generate_concatenated_tokenized_ds(
     gen_subseq = partial(_generate_subsequences, **gen_kwargs)
     for encoding in ds:
         # add encoding to accumulation
-        if encoding["input_ids"][-1] == eos_token_id:
+        if encoding["input_ids"][-1] != eos_token_id:
+            encoding_tmp = encoding
+        else:
             # this will no longer be the end of a sequence so we don't include the eos_token
             for k in encoding.keys():
                 encoding_tmp[k].extend(encoding[k][1:-1])
-        else:
-            encoding_tmp = encoding
         
         if encoding_tmp["input_ids"][-1] != space_id:
             # sequences shouldn't be concatenated directly; we put a space at the end if
@@ -197,7 +213,12 @@ def generate_concatenated_tokenized_ds(
             yield output_check(subseq, allow_lt=True)
 
 
-def instruction_to_prompt_completion(instruction, interstitial_text="", question=None, output=None):
+def instruction_to_prompt_completion(
+    instruction: Union[str, Dict[str, str]], 
+    interstitial_text: str = "",
+    question: Optional[str] = None,
+    output: Optional[str] = None
+) -> Dict[str, List[Dict[str, str]]]:
     if isinstance(instruction, str):
         system_content = instruction
         if question is None or output is None:
@@ -209,7 +230,7 @@ def instruction_to_prompt_completion(instruction, interstitial_text="", question
         system_content = instruction["instruction"]
         question = instruction["question"]
         output = instruction["output"]
-    return {
+    formatted_instance = {
         "prompt": [{
             "role": "system",
             "content": system_content + interstitial_text
@@ -222,16 +243,12 @@ def instruction_to_prompt_completion(instruction, interstitial_text="", question
             "content": output
         }]
     }
+    return formatted_instance
 
 
-def get_mcq_answer_pattern(dataset: Dataset):
+def get_mcq_answer_pattern(dataset: Dataset) -> re.Pattern:
     """
-
-    Args:
-        dataset:
-
-    Returns:
-        
+    Builds a regex pattern based on the answer keys in the `completion` column of the dataset.
     """
     letters = dataset.map(
         lambda x: {'letters': re.sub(r'[^A-Z]', '', x['completion'][0]['content'])},
@@ -246,7 +263,7 @@ def infer_answer_split_tokens_for_text_generation(
     original_col: str,
     templated_col: str,
     idx: int
-):
+) -> str:
     templated_prompt = dataset[templated_col][idx]
     original_final_prompt_element = dataset[original_col][idx][-1]["content"]
     final_prompt_element_template_idx = templated_prompt.find(original_final_prompt_element)
@@ -273,18 +290,18 @@ PUNCT_INSERT_PATTERN_B = re.compile(r"(?<=\S)([:;!\?])")
 LONGWORDS_PATTERN = re.compile(r"\s?\w{35,}" + rf"[{PUNCT_ASCII}]?\s?")  # can't use f-strings when there are {}s that we want regex to parse
 
 
-def _word_check_pattern(n: int):
+def _word_check_pattern(n: int) -> re.Pattern:
     return re.compile(r"^(?=(?:.*\b[{" + LETTERS + r"}]+\b){" + str(n) + "}).*$")
 
 
-def matches_word_check(text: str, n: int):
+def matches_word_check(text: str, n: int) -> bool:
     # ignoring punctuation and line breaks, the text must have at least n words that are made up only of letters
     ptrn = _word_check_pattern(n)
     text_check = re.sub(PUNCT_ASCII_PATTERN, "", text.replace("\n", " "))
     return bool(re.match(ptrn, text_check))
 
 
-def clean_text(text: str, strict: Optional[bool]=None, word_check_min: int=3):
+def clean_text(text: str, strict: Optional[bool]=None, word_check_min: int=3) -> str:
     # homogenise apostrophes
     text = re.sub("’", "'", text)
 
