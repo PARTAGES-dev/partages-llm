@@ -59,13 +59,15 @@ def parse_arguments():
 
 def vert_doc_template(doc_id: int, name: str, content: str):
     """
-
+    Atomic unit of .vert file content generation.
 
     Args:
-
+        doc_id: Integer ID for the document - usually just a counter.
+        name: String ID.
+        content: Contents of the docuement.
 
     Returns:
-
+        The text data of `content` formatted for deduplication.
     """
     doc = f'\n<doc id="{doc_id}" name="{name}">'
     if isinstance(content, list):
@@ -79,12 +81,13 @@ def vert_doc_template(doc_id: int, name: str, content: str):
 
 def count_lines(filepath: Union[str, Path]):
     """
-
+    Simply wraps the bash `wc -l` command in a subprocess and returns the number of lines in the given file 
+    
     Args:
-
+        filepath: File with lines to be counted.
 
     Returns:
-        
+        The number of lines in the file.
     """
     if not isinstance(filepath, str):
         filepath = str(filepath)
@@ -93,12 +96,16 @@ def count_lines(filepath: Union[str, Path]):
 
 def template_wo(f_io: TextIOWrapper, doc: Dict[str, Any], idx: int, content: str):
     """
+    Wraps `vert_doc_template` to write the output to disk.
 
     Args:
-
+        f_io: Output .vert file opened in write mode.
+        doc: Dataset instance to be processed.
+        idx: Counter for the current function call.
+        content: Text data to be formatted.
 
     Returns:
-        
+        Incremented counter: `idx + 1`.
     """
     source = doc.get("source", "partages-wp2")
     subset = doc.get("subset", "train")
@@ -116,12 +123,17 @@ def build_and_write_vert_file(
     max_sentences_per_vert_doc: int,
 ):
     """
+    Preprocessing function for deduplication: builds a file that Onion will accept as input.
 
     Args:
-
+        input_dir_path: Directory in which to put the generated file.
+        ds: Dataset to be converted to .vert.
+        doc_limit: Ceiling on the number of dataset instances to be considered.
+        disable_pb: Suppress progress bar output
+        max_sentences_per_vert_doc: Write to the output file in chunks of this size.
 
     Returns:
-        
+        A 2-tuple: the filepath into which the output was written, and the number of documents therein
     """
     vert_file_path_input = input_dir_path / "corpus.vert"
     tqdm_total = min(ds.num_rows, doc_limit)
@@ -149,12 +161,13 @@ def build_and_write_vert_file(
 
 def get_counts_vert(f_io: TextIOWrapper):
     """
+    Calculates some basic info about the given .vert file.
 
     Args:
-
+        f_io: TextIOWrapper object opened in read mode.
 
     Returns:
-        
+        Dictionary with counts of the number of documents, bytes, and tokens in the file. 
     """
     n_docs = n_tokens = n_bytes = 0
     for line in f_io:
@@ -167,7 +180,7 @@ def get_counts_vert(f_io: TextIOWrapper):
 
 
 def run_onion(
-    input_path: Path,
+    input_path: Union[Path, str],
     executable: str,
     opts: str,
     output_dir_path: Path,
@@ -175,16 +188,25 @@ def run_onion(
     log_prefix: str = ""
 ):
     """
+    Calls the Onion deduplication tool on the filepath provided.
 
     Args:
-
+        input_path: Path to a formatted .vert file to be deduplicated.
+        executable: Path to the Onion executable.
+        opts: Command-line arguments to pass to Onion.
+        output_dir_path: Where to put the deduplicated file - will put a file called `corpus-dedup.vert`
+                        in this folder; note that an existing file with the same path will be overwritten.
+        logger: Optionally pass a RootLogger object - if not provided, will print messages to stdout.
+        log_prefix: Optional prefix string for logging messages
 
     Returns:
-        
+        The path to the output file - `[output_dir_path]/corpus-dedup.vert`
     """
+    if isinstance(input_path, Path):
+        input_path = str(input_path)
     disp = logger.info if logger else print
     output_path = output_dir_path / "corpus-dedup.vert"
-    dedup_cmd = [executable, *opts.split(), str(input_path)]
+    dedup_cmd = [executable, *opts.split(), input_path]
     dedup_cmd_str = " ".join(dedup_cmd)
     disp_args_cmd = log_prefix, dedup_cmd_str, output_path
     disp("%sRunning deduplication command: %s > %s" % disp_args_cmd)
@@ -197,12 +219,16 @@ def run_onion(
 
 def statmode_func(ngram: int, threshold: int, buffer: int, run_kwargs: Dict[str, Any]):
     """
+    Calls Onion without writing to disk: to be used for collecting statistics.
 
     Args:
-
+        ngram: Value to pass to the `-n` command line argument.
+        threshold: Value to pass to the `-t` command line argument.
+        buffer: Value to pass to the `-b` command line argument.
+        run_kwargs: Keyword arguments for `run_onion`.
 
     Returns:
-        
+        Dictionary with statistics about the deduplication run, à la `get_counts_vert`.
     """
     opts = f"-qsmn {ngram} -t {threshold} -b {buffer}"
     output_filepath = run_onion(opts=opts, **run_kwargs)
@@ -214,18 +240,26 @@ def statmode_func(ngram: int, threshold: int, buffer: int, run_kwargs: Dict[str,
 def statmode_func_mp_wrapper(
     process_id_offset: int,
     ngram: int,
-    threshold: int,
+    threshold: float,
     buffer: int,
     tmp_path: Path,
     run_kwargs: Dict[str, Any]
 ):
     """
-
+    Wrapper for `statmode_func` that manages the `run_onion` kwargs for a multiprocessing context.
+    
     Args:
-
+        process_id_offset: Integer by which to offset the current process ID - if there are more 
+                            processes to run than cores specified, the the multiprocessing pools
+                            are chunked and the run IDs need to be offset by the chunk size.
+        ngram: See Onion arguments.
+        threshold: See Onion arguments.
+        buffer: See Onion arguments.
+        tmp_path: Where to make the process-specific subdirectory.
+        run_kwargs: Keyword arguments for `run_onion`.
 
     Returns:
-        
+        See `statmode_func`.
     """
     proc = mp.current_process()._identity[0] + process_id_offset
     output_dir_path = tmp_path / f"output-{proc}"
@@ -244,12 +278,16 @@ def vert2xml(
     total_lines: Optional[int] = None
 ):
     """
+    Converts a .vert file to XML.
 
     Args:
-
+        f_io: .vert file opened in read mode.
+        root_name: What to call the root node of the XML tree structure.
+        disable_pb: Suppress progress bar output
+        total_lines: The number of lines to be read: only used by `tqdm` if activated.
 
     Returns:
-        
+        List of `f_io` contents formatted for XML.
     """
     xml_esc = str.maketrans({
         "\n": " ",
@@ -278,12 +316,14 @@ def vert2xml(
 
 def tree_parse_generator(xml_path: Union[str, Path]):
     """
+    Generator function to be passed to `Dataset.from_generator` to build a text dataset from an XML tree.
 
     Args:
-
+        xml_path: Path to the XML file to read.
 
     Yields:
-        
+        Dictionary containing the `source`, `subset` and `doc_id` metadata from PARCOMED, along with the
+        relevant (deduplicated, usually) text data, to be converted to a Dataset element.
     """
     for document in etree.parse(xml_path).findall("doc"):
         metadata = document.attrib["name"].split("__")
@@ -363,7 +403,7 @@ def main():
                         upper_arg_idx = min(lower_arg_idx + num_proc, total_runs)
                         params_this_iter = params[lower_arg_idx:upper_arg_idx]
                         process_id_offset = i * num_proc
-                        map_args = list((j, *t) for j, t in zip(repeat(process_id_offset), params_this_iter))
+                        map_args = [(j, *t) for j, t in zip(repeat(process_id_offset), params_this_iter)]
                         output["dedup_runs"].extend(pool.starmap(map_func, map_args))
             else:
                 run_onion_kwargs["output_dir_path"] = tmp_path

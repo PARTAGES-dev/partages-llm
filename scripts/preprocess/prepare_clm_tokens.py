@@ -74,8 +74,11 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def filter_tokenized_ds(ds, min_length):
-    # pretty sure this is faster than Dataset.filter(lambda x: len(x["input_ids"]) > min_length)
+def filter_tokenized_ds(ds: Dataset, min_length: int):
+    """
+    Removes all instances shorter than `min_length` from the dataset
+    """
+    # this seems to be faster than Dataset.filter(lambda x: len(x["input_ids"]) > min_length)
     df = ds.to_pandas()
     token_counts = df.input_ids.apply(len)
     df_filtered = df[token_counts > min_length]
@@ -83,9 +86,10 @@ def filter_tokenized_ds(ds, min_length):
 
 
 def make_val_split(ds, config, logger=None):
+    disp = logger.info if logger else print
     if config is None:
         return ds
-    logger.info("Creating validation split")
+    disp("Creating validation split")
     test_size = config.num_validation_docs if config.num_validation_docs else config.proportion
     return ds.class_encode_column("source").train_test_split(
         test_size=test_size,
@@ -102,9 +106,12 @@ def run_tokenization(
     features,
     min_length,
     concatenate_generator_func,
-    write_dir,
     logger=None
 ):
+    """
+    Core tokenization logic - handles the tokenizer call, length-based filtering
+    (via `filter_tokenized_ds`) and concatenation.
+    """
     disp = logger.info if logger else print
     ds = dataset_or_path if isinstance(dataset_or_path, (Dataset, DatasetDict)) \
         else load_from_disk(dataset_or_path)        
@@ -150,7 +157,7 @@ def run_tokenization(
                 cache_dir=_DS_CACHE
             )
             disp(
-                "Done concatenation: num_rows %d -> %d" % (
+                "Finished concatenation: num_rows %d -> %d" % (
                     tokenized_ds_filtered.num_rows,
                     tokenized_ds_output.num_rows
                 )
@@ -169,19 +176,17 @@ def run_tokenization(
                 )
             })
             disp(
-            "Done concatenation: num_rows train %d -> %d; num_rows val. %d -> %d" % (
-                tokenized_ds_filtered.num_rows["train"],
-                tokenized_ds_output.num_rows["train"],
-                tokenized_ds_filtered.num_rows["val"],
-                tokenized_ds_output.num_rows["val"],
+                "Finished concatenation: num_rows train %d -> %d; num_rows val. %d -> %d" % (
+                    tokenized_ds_filtered.num_rows["train"],
+                    tokenized_ds_output.num_rows["train"],
+                    tokenized_ds_filtered.num_rows["val"],
+                    tokenized_ds_output.num_rows["val"],
+                )
             )
-        )
     else:
         tokenized_ds_output = tokenized_ds_filtered
-    write_dir.mkdir(parents=True, exist_ok=True)
-    disp("Writing tokenized dataset to disk @ %s" % write_dir)
-    tokenized_ds_output.save_to_disk(write_dir)
-
+    return tokenized_ds_output
+    
 
 def build_tokenized_dataset(args, logger):
     ### general args/metadata setup
@@ -266,7 +271,7 @@ def build_tokenized_dataset(args, logger):
     tokenized_ds_dir = output_dir / tokenized_ds_name
     
     ### let's go
-    run_tokenization(
+    processed_ds = run_tokenization(
         ds,
         _tknz_func,
         args.overflow,
@@ -274,9 +279,11 @@ def build_tokenized_dataset(args, logger):
         tokenized_ds_features,
         args.min_length,
         concatenate_generator_func,
-        tokenized_ds_dir,
         logger
     )
+    tokenized_ds_dir.mkdir(parents=True, exist_ok=True)
+    disp("Writing tokenized dataset to disk @ %s" % tokenized_ds_dir)
+    processed_ds.save_to_disk(tokenized_ds_dir)
 
     ### wrapping up
     arg_dict["script"] = __file__

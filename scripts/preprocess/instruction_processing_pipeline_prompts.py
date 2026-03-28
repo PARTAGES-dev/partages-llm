@@ -68,12 +68,18 @@ def parse_arguments():
 
 
 def get_instruction_template(template_path: str):
+    """
+    Utility function for Jinja2 templates.
+    """
     jinja_env_dir, template_file_name = os.path.split(template_path)
     jinja_env = Environment(loader=FileSystemLoader(jinja_env_dir))
     return jinja_env.get_template(template_file_name)
 
 
 def filter_func(x: Dict[str, Any], source: str, split: str="validation"):
+    """
+    Returns a boolean inclusion indicator based on the metadata arguments provided. 
+    """
     sourcecheck = x["source"] == source
     splitcheck = x["source_split"] == split
     return sourcecheck and splitcheck
@@ -111,6 +117,9 @@ def sample_examples(
     seed: int,
     disable_tqdm: bool=False
 ):
+    """
+    Samples `num_examples` instances from the dataset `ds` to be used as few-shot examples.
+    """
     if disable_tqdm:
         disable_progress_bars()
     ds_train_examples = ds.shuffle(seed=seed).take(num_examples).map(
@@ -121,18 +130,20 @@ def sample_examples(
         f"QUESTION {i + 1} : {q['question']}\nRÉPONSE {i + 1} : {q['output']}" \
             for i, q in enumerate(ds_train_examples)
     ]
-    return fewshot_template.render(
+    formatted_text = fewshot_template.render(
         question_list=question_list,
         num_examples=num_examples
     )
+    return formatted_text
 
 
 def resample_wrap(instruction: Union[str, Dict[str, str]], **kwargs):
     fewshot_interstitial_text = sample_examples(**kwargs)
-    return instruction_to_prompt_completion(
+    prompt_instance = instruction_to_prompt_completion(
         instruction=instruction,
         interstitial_text=fewshot_interstitial_text
     )
+    return prompt_instance
 
 
 def prompt_word_count_map_func(instance: Dict[str, str]):
