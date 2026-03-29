@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import inspect
 import logging
 import importlib.util
@@ -165,4 +166,20 @@ def format_model_name(model_name: str, base_only: bool = False) -> str:
     split_slice = slice(s, -1) if model_name.endswith("__") else slice(s + 1, None)
     return "_".join(model_name.split("__")[split_slice])
 
+
+def config_file_overwrite(parser_func: Callable) -> Callable:
+    @wraps(parser_func)
+    def wrapper():
+        namespace = parser_func()
+        config_filepath_arg = getattr(namespace, "config", None)
+        # if the command line parser has a config argument, read values from that file and
+        # use them to overwrite the existing ones
+        if config_filepath_arg is not None:
+            with open(config_filepath_arg) as f:
+                config = json.load(f)
+            for k, v in config.items():
+                if hasattr(namespace, k):  # config files are not allowed to introduce new arguments
+                    setattr(namespace, k, v)
+        return namespace
+    return wrapper
 

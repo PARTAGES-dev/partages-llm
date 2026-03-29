@@ -28,13 +28,14 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
 
-from partages_llm.utils import basic_logger_init, ignored
+from partages_llm.utils import config_file_overwrite, basic_logger_init, ignored
 from partages_llm.processing import get_mcq_answer_pattern
 from partages_llm.eval.mcqa import mcqa
 
 _DATASET_NAMES = "frenchmedmcqa", "mediqal"
 
 
+@config_file_overwrite
 def parse_arguments() -> Namespace:
     home = os.getenv("HOME")
     default_output_dir = os.path.join(home, "partages-models/sft-runs/")
@@ -76,6 +77,7 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--max-hps-iter", type=int, default=500)
     parser.add_argument("--interactive-bs", action="store_true")
     parser.add_argument("--ll", dest="log_level", default="info")
+    parser.add_argument("--config")
     return parser.parse_args()
 
 

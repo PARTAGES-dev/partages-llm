@@ -20,6 +20,8 @@ from transformers import (
 )
 from transformers.utils import logging as hf_logging
 
+from partages_llm.utils import config_file_overwrite
+
 global IDRIS  # flag: are we on Jean Zay?
 try:
     # need this module to run multinode training on Jean Zay
@@ -52,6 +54,7 @@ SCHED_HELP = "Learning rate scheduling system."
 PB_HELP = "Show a progress bar for training."
 
 
+@config_file_overwrite
 def parse_arguments() -> Namespace:
     base_dir_variable = "WORK" if IDRIS else "HOME"
     base_dir = os.getenv(base_dir_variable)
@@ -80,6 +83,7 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--acp", dest="activation_checkpointing", action="store_true")
     parser.add_argument("--prof", action="store_true")
     parser.add_argument("--no-eval", action="store_true")
+    parser.add_argument("--config")
     return parser.parse_args()
 
 
