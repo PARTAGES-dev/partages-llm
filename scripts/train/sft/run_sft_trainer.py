@@ -72,6 +72,7 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--pad-token")
     parser.add_argument("--hps-cfg")
     parser.add_argument("--hps-dev-frac", type=float, default=.05)
+    parser.add_argument("--hps-metric", default="accuracy")
     parser.add_argument("--max-hps-iter", type=int, default=500)
     parser.add_argument("--interactive-bs", action="store_true")
     parser.add_argument("--ll", dest="log_level", default="info")
@@ -295,13 +296,14 @@ def main():
         hps_output_basename = f"gs_{Path(args.model_path).name}_" + datetime.now().strftime("%y-%m-%d_%H-%M")
         output_dir_path = Path(args.output_dir) / hps_output_basename
         output_dir_path.mkdir()
-        with (output_dir_path / "script_params.json").open("w") as f:
-            json.dump(vars(args), f, indent=4)
         hps_results = []
         hpsc_processed = {k: [True, False] if v is None else v for k, v in hyperparameter_search_config.items()}
+        mcq_answer_pattern = get_mcq_answer_pattern(train_ds)
         dev_split_ds = train_ds.train_test_split(test_size=args.hps_dev_frac, shuffle=True, seed=args.seed)
         logger.info("* HPS dataset *\n%s", repr(dev_split_ds))
         bs_adjustments = 0
+        max_score = 0.
+        best_model = None
         intermediate_txt_file_path = output_dir_path / "hps-results-intermediate.txt"
         
         for i, value_combination in enumerate(product(*hpsc_processed.values())):
@@ -318,15 +320,20 @@ def main():
                     json.dump(hps_results, f, indent=4)
                 exit(1)
             trainer_metrics = trainer.evaluate()
+            merged_model_hps = trainer.model.merge_and_unload().eval()
             eval_metrics = mcqa(
-                model=trainer.model.merge_and_unload().eval(),
+                model=merged_model_hps,
                 tokenizer=trainer.tokenizer,
                 dataset=trainer.eval_dataset,
                 batch_size=args.eval_batch_size,
                 max_new_tokens=16,
                 temperature=0.,
-                mcq_answer_pattern=get_mcq_answer_pattern(trainer.eval_dataset),
+                mcq_answer_pattern=mcq_answer_pattern,
             )
+            if eval_metrics["metrics"][args.hps_metric] >= max_score:
+                max_score = eval_metrics["metrics"][args.hps_metric]
+                best_model = merged_model_hps
+                logger.info("New best score: accuracy=%.5f", max_score * 100)
             run_data = {
                 "iter": i,
                 "params": hp_kwargs,
@@ -352,6 +359,7 @@ def main():
             gc.collect()
             logger.debug("CUDA Allocated memory after cleanup: %.2f MB", torch.cuda.memory_allocated() / 1024 ** 2)
         
+        merged_model = best_model
         with (output_dir_path / "hps-results.jsonl").open("w") as f:
             json.dump(hps_results, f, indent=4)
         logger.info("Results saved @ %s\n%s", output_dir_path, "=" * 100)
@@ -361,68 +369,70 @@ def main():
         
         logger.info("Merging LoRA and base models")
         merged_model = trainer.model.merge_and_unload()
-        merged_model.save_pretrained(
-            trainer.args.output_dir,
-            safe_serialization=True,
-            max_shard_size="1GB",
-            save_embedding_layers=True
-        )
-        tokenizer.save_pretrained(trainer.args.output_dir)
-        
         output_dir_path = Path(trainer.args.output_dir)
-        with (output_dir_path / "script_params.json").open("w") as f:
-            json.dump(arg_dict, f, indent=4)
+    
+    ## save finetuned model ##
+    merged_model.save_pretrained(
+        trainer.args.output_dir,
+        safe_serialization=True,
+        max_shard_size="1GB",
+        save_embedding_layers=True
+    )
+    tokenizer.save_pretrained(trainer.args.output_dir)
+    
+    with (output_dir_path / "script_params.json").open("w") as f:
+        json.dump(arg_dict, f, indent=4)
         
-        ## EVAL ##
-        if not args.skip_eval:
-            logger.info("Evaluating on validation set")
-            if tokenizer.chat_template is None and args.chat_template is not None:
-                with open(args.chat_template) as f:
-                    setattr(tokenizer, "chat_template", f.read())
-            eval_ds = eval_ds.map(
-                lambda x: tokenizer.apply_chat_template(
-                    x["prompt"],
-                    add_generation_prompt=True,
-                    enable_thinking=False,
-                    return_dict=True,
-                    padding=False  # this'll be done during batching in evaluation func
-                ),
-                desc="Applying chat template + tokenizing eval dataset",
-                remove_columns=["prompt"],
-            )
-            def _metric_disp_str(metric_dict):
-                return "\n\t".join(f"{k.upper()} = {round(v * 100, 2)}" for k, v in metric_dict.items())
-            if isinstance(eval_ds, DatasetDict):
-                # run eval on both datasets
-                eval_results = {}
-                for dataset_name in eval_ds:
-                    mcq_answer_pattern = get_mcq_answer_pattern(eval_ds[dataset_name])
-                    eval_results_iter = mcqa(
-                        model=merged_model,
-                        tokenizer=tokenizer,
-                        dataset=eval_ds[dataset_name],
-                        mcq_answer_pattern=mcq_answer_pattern,
-                        batch_size=args.eval_batch_size,
-                        temperature=0.,
-                        max_new_tokens=16
-                    )
-                    logger.info("%s EVAL SET METRICS:\n\t%s", dataset_name.upper(), _metric_disp_str(eval_results_iter["metrics"]))
-                    eval_results[dataset_name] = eval_results_iter
-            else:
-                mcq_answer_pattern = get_mcq_answer_pattern(eval_ds)
-                eval_results = mcqa(
+    ## EVAL ##
+    if not args.skip_eval:
+        logger.info("Evaluating on validation set")
+        if tokenizer.chat_template is None and args.chat_template is not None:
+            with open(args.chat_template) as f:
+                setattr(tokenizer, "chat_template", f.read())
+        eval_ds = eval_ds.map(
+            lambda x: tokenizer.apply_chat_template(
+                x["prompt"],
+                add_generation_prompt=True,
+                enable_thinking=False,
+                return_dict=True,
+                padding=False  # this'll be done during batching in evaluation func
+            ),
+            desc="Applying chat template + tokenizing eval dataset",
+            remove_columns=["prompt"],
+        )
+        def _metric_disp_str(metric_dict):
+            return "\n\t".join(f"{k.upper()} = {round(v * 100, 2)}" for k, v in metric_dict.items())
+        if isinstance(eval_ds, DatasetDict):
+            # run eval on both datasets
+            eval_results = {}
+            for dataset_name in eval_ds:
+                mcq_answer_pattern = get_mcq_answer_pattern(eval_ds[dataset_name])
+                eval_results_iter = mcqa(
                     model=merged_model,
                     tokenizer=tokenizer,
-                    dataset=eval_ds,
+                    dataset=eval_ds[dataset_name],
                     mcq_answer_pattern=mcq_answer_pattern,
                     batch_size=args.eval_batch_size,
                     temperature=0.,
                     max_new_tokens=16
                 )
-                logger.info("%s EVAL SET METRICS:\n\t%s", args.dataset_name.upper(), _metric_disp_str(eval_results["metrics"]))
-            with (output_dir_path / "eval-results.json").open("w") as f:
-                json.dump(eval_results, f, indent=4)
-        logger.info("Run finished; merged model saved @ %s\n%s", trainer.args.output_dir, "=" * 75)
+                logger.info("%s EVAL SET METRICS:\n\t%s", dataset_name.upper(), _metric_disp_str(eval_results_iter["metrics"]))
+                eval_results[dataset_name] = eval_results_iter
+        else:
+            mcq_answer_pattern = get_mcq_answer_pattern(eval_ds)
+            eval_results = mcqa(
+                model=merged_model,
+                tokenizer=tokenizer,
+                dataset=eval_ds,
+                mcq_answer_pattern=mcq_answer_pattern,
+                batch_size=args.eval_batch_size,
+                temperature=0.,
+                max_new_tokens=16
+            )
+            logger.info("%s EVAL SET METRICS:\n\t%s", args.dataset_name.upper(), _metric_disp_str(eval_results["metrics"]))
+        with (output_dir_path / "eval-results.json").open("w") as f:
+            json.dump(eval_results, f, indent=4)
+    logger.info("Run finished; merged model saved @ %s\n%s", trainer.args.output_dir, "=" * 75)
 
 
 if __name__ == "__main__":

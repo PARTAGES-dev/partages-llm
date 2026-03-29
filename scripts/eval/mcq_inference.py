@@ -3,7 +3,6 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from pathlib import Path
 from warnings import warn
 from datetime import datetime
-from random import randint
 
 import torch
 import datasets
@@ -11,7 +10,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import AutoPeftModelForCausalLM
 
 from partages_llm.utils import basic_logger_init
-from partages_llm.processing import get_mcq_answer_pattern, infer_answer_split_tokens_for_text_generation
+from partages_llm.processing import get_mcq_answer_pattern
 from partages_llm.eval.mcqa import mcqa
 
 DESC="Evaluates a text generation model on one of the MCQ tasks from PARCOMED (frenchmedmcqa or mediqal)"
@@ -119,12 +118,6 @@ def main():
         },
         desc="Applying chat template"
     )
-    split_token_s = infer_answer_split_tokens_for_text_generation(
-        dataset=eval_dataset_templated,
-        original_col="prompt",
-        templated_col="templated_prompt",
-        idx=randint(0, len(eval_dataset_templated))
-    )
     eval_dataset_tokenized_input = eval_dataset_templated.map(
         lambda x: tokenizer(x["templated_prompt"]),
         remove_columns=["prompt"],
@@ -140,8 +133,6 @@ def main():
     mcq_answer_pattern = get_mcq_answer_pattern(eval_dataset_text)
     return_all_outputs = args.write_out and args.write_out_all
     logger.info("Launching generations")
-    if split_token_s is not None:
-        logger.info("Generation prompt marker:\n%s", split_token_s)
     result = mcqa(
         model,
         tokenizer,
@@ -149,7 +140,6 @@ def main():
         top_p=args.sampling_top_p,
         batch_size=args.batch_size,
         temperature=args.temperature,
-        answer_split_token=split_token_s,
         max_new_tokens=args.max_gen_tokens,
         return_all_outputs=return_all_outputs,
         inspect_responses_live=args.debug_mode,

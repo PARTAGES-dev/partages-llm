@@ -1,5 +1,4 @@
 import re
-import warnings
 from typing import Any, Callable, Dict, List, Optional, Union
 from functools import partial
 from dataclasses import dataclass
@@ -256,26 +255,6 @@ def get_mcq_answer_pattern(dataset: Dataset) -> re.Pattern:
     )['letters']
     answer_options = ''.join(set(''.join(letters)))
     return re.compile(fr'[,\.\s>]?[{answer_options}][,\.\s<]')
-
-
-def infer_answer_split_tokens_for_text_generation(
-    dataset: Dataset,
-    original_col: str,
-    templated_col: str,
-    idx: int
-) -> str:
-    templated_prompt = dataset[templated_col][idx]
-    original_final_prompt_element = dataset[original_col][idx][-1]["content"]
-    final_prompt_element_template_idx = templated_prompt.find(original_final_prompt_element)
-    if final_prompt_element_template_idx == -1:
-        warnings.warn("User content not found in original prompt when trying to infer generation prompt")
-        return
-    answer_split_idx = final_prompt_element_template_idx + len(original_final_prompt_element)
-    split_token_s = templated_prompt[answer_split_idx:]
-    templated_col_endswith_split_token = map(lambda s: s.endswith(split_token_s), dataset[templated_col])
-    assert sum(templated_col_endswith_split_token) == len(dataset), \
-        f"Not all prompts end with the inferred split token {split_token_s}"
-    return split_token_s
 
 
 # regex patterns for cleaning - putting them here so they'll be compiled only once on import which I

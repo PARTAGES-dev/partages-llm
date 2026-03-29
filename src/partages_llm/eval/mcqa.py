@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Set, Tuple, Union
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -69,7 +69,7 @@ def _prepare_answer_labels(
     return answer_set, y_set
 
 
-def _calculate_metric_inputs(answer_set: Set[str], y_set: Set[str]) -> Tuple[int]:
+def _calculate_metric_inputs(answer_set: Set[str], y_set: Set[str]) -> Tuple[int, ...]:
     if answer_set:
         overlap = answer_set.intersection(y_set)
         correct = len(overlap)  # true positives
@@ -103,7 +103,6 @@ def mcqa(
     batch_size: int,
     max_new_tokens: int,
     mcq_answer_pattern: re.Pattern,
-    answer_split_token: Optional[str] = None,
     temperature: float = .05,
     top_p: float = .9,
     inspect_responses_live: bool = False,
@@ -120,8 +119,6 @@ def mcqa(
         batch_size: Number of questions for which to run generation at a time.
         max_new_tokens: Ceiling on the number of tokens to generate for each question.
         mcq_answer_pattern: Regex to use to extract answers from generated text.
-        answer_split_token: String that marks the beginning of the model's generation from
-            the end of the prompt (usually the `<assistant>` token or equivalent)
         temperature: Randomness parameter.
         top_p: Percentage threshold for sampling.
         inspect_responses_live: Print the model's answers to the terminal as they're generated.
