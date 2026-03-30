@@ -28,7 +28,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
 
-from partages_llm.utils import config_file_overwrite, basic_logger_init, ignored
+from partages_llm.utils import config_file_overwrite, basic_logger_init, ignored, ndnt
 from partages_llm.processing import get_mcq_answer_pattern
 from partages_llm.eval.mcqa import mcqa
 
@@ -131,7 +131,12 @@ def run_training(
         outputs = set(map(lambda x: x[0]["content"].replace("\n", ""), train_ds["completion"]))  # set of answers
         target_tokens = set("".join(outputs))  # set of unique tokens appearing in the answers 
         target_token_ids = [x.pop() for x in tokenizer(list(target_tokens))["input_ids"]]
-        logger.info("Targeted tokens: `%s`\n\t\t\tIDs: %s", "`  `".join(target_tokens), ", ".join(map(str, target_token_ids)))
+        logger.info(
+            "Targeted tokens: `%s`%sIDs: %s",
+            ndnt(3),
+            "`  `".join(target_tokens),
+            ", ".join(map(str, target_token_ids))
+        )
         trainable_token_indices = {"embed_tokens": target_token_ids}
     else:
         modules_to_save = ["lm_head", "embed_tokens"]

@@ -104,6 +104,15 @@ def clean_quotes(s: str) -> str:
     return s
 
 
+def ndnt(k: int) -> str:
+    """
+    Helper function for logger readability; shortcut for indenting lines
+
+    Returns: str
+    """
+    return "\n" + "\t" * k
+
+
 def get_named_entities(text: List[str], tags: List[int]) -> List[str]:
     result = []
     current_phrase = []

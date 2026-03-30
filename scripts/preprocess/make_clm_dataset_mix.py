@@ -2,14 +2,14 @@ import os
 import json
 from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
-from typing import Callable, Dict, Union
+from typing import Dict, Union
 from logging import RootLogger
 from functools import partial
 
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk, concatenate_datasets
 
 from partages_llm.utils import Bunch, basic_logger_init, make_version_subdir_path
-from partages_llm.processing import DataMixConfig
+from partages_llm.processing import DataMixConfig, normalise_dataset
 
 _HERE = os.path.dirname(__file__)
 _DATADIR_BASE = os.path.join(os.getenv("HOME"), "partages-llm-data")
@@ -94,25 +94,6 @@ def parallel_column_transform_dict(instance) -> Dict[str, str]:
     return dict_
 
 
-def normalise_dataset(
-    ds: Union[Dataset, DatasetDict],
-    column_transform_dict_func: Callable,
-    num_proc: int
-) -> Union[Dataset, DatasetDict]:
-    def map_func(instance, update_func):
-        instance.update(update_func(instance))
-        return instance
-    remove_columns = [ftr for ftr in ds.features if ftr not in (
-        "text", "source", "subset", "doc_id"
-    )]
-    mapped_ds = ds.map(
-        partial(map_func, update_func=column_transform_dict_func),
-        num_proc=num_proc,
-        remove_columns=remove_columns
-    )
-    return mapped_ds
-
-
 def main():
     args = parse_arguments()
     logger = basic_logger_init()
@@ -145,7 +126,8 @@ def main():
         json.dump(mix_config_dict, f, indent=4)
      
     makesample = partial(subsample_ds, num_docs_base=base_ds.num_rows, seed=args.seed, logger=logger)
-    normalise_ds_mp = partial(normalise_dataset, num_proc=args.workers)
+    keep_columns = ["text", "source", "subset", "doc_id"]
+    normalise_ds_mp = partial(normalise_dataset, keep_columns=keep_columns, num_proc=args.workers)
     
     logger.info("Loading TransBio dataset from %s", args.transbio_path)
     if not mix_config.transbio_proportion:

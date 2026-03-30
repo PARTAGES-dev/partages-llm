@@ -20,7 +20,7 @@ from transformers import (
 )
 from transformers.utils import logging as hf_logging
 
-from partages_llm.utils import config_file_overwrite
+from partages_llm.utils import config_file_overwrite, ndnt
 
 global IDRIS  # flag: are we on Jean Zay?
 try:
@@ -85,15 +85,6 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--no-eval", action="store_true")
     parser.add_argument("--config")
     return parser.parse_args()
-
-
-def ndnt(k: int) -> str:
-    """
-    Helper function for logger readability; shortcut for indenting lines
-
-    Returns: str
-    """
-    return "\n" + "\t" * k
 
 
 def get_torch_rank() -> int:

@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from functools import partial
 from dataclasses import dataclass
 
-from datasets import Dataset, Features
+from datasets import Dataset, DatasetDict, Features
 
 TokenEncodingType = Dict[str, List[int]]
 
@@ -60,6 +60,36 @@ def get_tokenized_ds_features(class_label_names: Optional[List[str]] = None) -> 
             "string", "ClassLabel", class_label_names
         )
     return Features.from_dict(features_dict)
+
+
+def normalise_dataset(
+    ds: Union[Dataset, DatasetDict],
+    column_transform_dict_func: Callable,
+    keep_columns: List[str],
+    num_proc: int
+) -> Union[Dataset, DatasetDict]:
+    def map_func(instance, update_func):
+        instance.update(update_func(instance))
+        return instance
+    remove_columns = [ftr for ftr in ds.features if ftr not in keep_columns]
+    mapped_ds = ds.map(
+        partial(map_func, update_func=column_transform_dict_func),
+        num_proc=num_proc,
+        remove_columns=remove_columns
+    )
+    return mapped_ds
+
+
+def filter_tokenized_ds(ds: Dataset, min_length: int) -> Dataset:
+    """
+    Removes all instances shorter than `min_length` from the dataset
+    """
+    # this seems to be faster than Dataset.filter(lambda x: len(x["input_ids"]) > min_length)
+    df = ds.to_pandas()
+    token_counts = df.input_ids.apply(len)
+    df_filtered = df[token_counts > min_length]
+    filtered_ds = Dataset.from_pandas(df_filtered, preserve_index=False)
+    return filtered_ds
 
 
 def _enc_default_dict_init(

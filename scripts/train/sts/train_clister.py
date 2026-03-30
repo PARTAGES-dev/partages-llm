@@ -113,7 +113,7 @@ def main():
     train_df = df[df.split == "train"]
     data_loader = build_train_dataloader(train_df, args.batch_size)
     
-    ## RUN TRAININING ##
+    ## RUN TRAINING ##
     logger.info("Loading + launching model: %s", args.model_id) 
     model = train_sts(
         data_loader=data_loader,

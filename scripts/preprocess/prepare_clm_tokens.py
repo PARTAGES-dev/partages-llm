@@ -11,8 +11,13 @@ from datetime import datetime
 from datasets import Dataset, DatasetDict, Features, load_from_disk
 from transformers import AutoTokenizer
 
-from partages_llm.utils import basic_logger_init
-from partages_llm.processing import ValidationSplitConfig, get_tokenized_ds_features, generate_concatenated_tokenized_ds
+from partages_llm.utils import basic_logger_init, ndnt
+from partages_llm.processing import (
+    ValidationSplitConfig,
+    get_tokenized_ds_features,
+    generate_concatenated_tokenized_ds,
+    filter_tokenized_ds
+)
 
 _DATADIR_BASE = Path(os.getenv("HOME")) / "partages-llm-data"
 _DS_CACHE =  _DATADIR_BASE / "hf-cache"
@@ -74,17 +79,6 @@ def parse_arguments() -> Namespace:
     parser.add_argument("-r", "--use-research-version", action="store_true", help=URV_HELP)
     parser.add_argument("-c", "--cut-tokenizer-model-name", action="store_true", help=CTMN_HELP)
     return parser.parse_args()
-
-
-def filter_tokenized_ds(ds: Dataset, min_length: int) -> Dataset:
-    """
-    Removes all instances shorter than `min_length` from the dataset
-    """
-    # this seems to be faster than Dataset.filter(lambda x: len(x["input_ids"]) > min_length)
-    df = ds.to_pandas()
-    token_counts = df.input_ids.apply(len)
-    df_filtered = df[token_counts > min_length]
-    return Dataset.from_pandas(df_filtered, preserve_index=False)
 
 
 def make_val_split(ds, config, logger=None) -> Dataset:
@@ -201,11 +195,11 @@ def build_tokenized_dataset(args: Namespace, logger: RootLogger):
         validation_split_config = ValidationSplitConfig(**validation_split_config_dict)
     else:
         validation_split_config = None
-    arg_str = "\n\t\t".join(f"{k}: {v}" for k, v in arg_dict.items())
+    arg_str = ndnt(2).join(f"{k}: {v}" for k, v in arg_dict.items())
     output_dir = Path(args.output_dir)
     
     ### tokenizer functionality
-    logger.info("TOKENIZATION RUN\n\tParameters:\n\t\t%s", arg_str)
+    logger.info("TOKENIZATION RUN\n\tParameters:%s%s", ndnt(2), arg_str)
     assert output_dir.exists(), f"{output_dir} isn't a valid directory path"
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer_name_or_path, model_max_length=args.model_max_length,

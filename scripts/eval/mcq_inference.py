@@ -9,7 +9,7 @@ import datasets
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import AutoPeftModelForCausalLM
 
-from partages_llm.utils import basic_logger_init
+from partages_llm.utils import basic_logger_init, ndnt
 from partages_llm.processing import get_mcq_answer_pattern
 from partages_llm.eval.mcqa import mcqa
 
@@ -145,7 +145,7 @@ def main():
         inspect_responses_live=args.debug_mode,
         mcq_answer_pattern=mcq_answer_pattern
     )
-    t = "\n\t\t\t\t - "
+    t = ndnt(4)
     metric_disp_str = t.join(
         f"{k.upper()} = {round(v * 100, 4)}" for k, v in result["metrics"].items()
     )

@@ -92,13 +92,14 @@ def embed_documents(
         A numpy array where each row is the embedding for a corresponding document.
     """
     model = SentenceTransformer(bert_model_name)
-    return model.encode(
+    embeddings = model.encode(
         documents, 
         batch_size=batch_size,
         device=device,
         show_progress_bar=pb,
         convert_to_numpy=True
     )
+    return embeddings
 
 
 def save_embeddings(
@@ -393,11 +394,12 @@ def generate_llm_prompt(
 
     jinja_env = Environment(loader=FileSystemLoader(jinja_env_dir))
     prompt_template = jinja_env.get_template(template_file_name)
-    return prompt_template.render(
+    prompt = prompt_template.render(
         cluster_desc_list=cluster_desc_list,
         num_keywords=num_keywords,
         num_examples=sample_n_docs
     )
+    return prompt
 
 
 def main():

@@ -3,7 +3,6 @@
 # set defaults
 GPU_TYPE='a'
 NUM_GPUS=1
-MODEL_DIR="$WORK/partages-models"
 OUTPUT_DIR="$WORK/partages-data/eval-results"
 MAX_GEN_TOKS=2048
 
@@ -14,7 +13,7 @@ while getopts "g:n:m:o:t:" opt; do
     case $opt in
         g) GPU_TYPE="$OPTARG" ;;
         n) NUM_GPUS="$OPTARG" ;;
-        m) MODEL_DIR="$OPTARG" ;;
+        m) MODEL_DIR="$OPTARG" ;;  # no default
         o) OUTPUT_DIR="$OPTARG" ;;
         t) MAX_GEN_TOKS="$OPTARG" ;;
         *) echo $USAGE && exit 1 ;;
@@ -98,137 +97,6 @@ MODELS=(
     # Llama-3.2-1B-Instruct
     # Mistral-7B-Instruct-v0.3
     #################
-
-    ##############
-    ### PDAPT2 ###
-    ##############
-    # Apertus-8B-PDAPT2-1080
-    # EuroLLM-9B-PDAPT2-720
-    # Mistral-7B-PDAPT2-180
-    # Apertus-8B-PDAPT2-1440
-    # EuroLLM-9B-PDAPT2-890
-    # Mistral-7B-PDAPT2-360
-    # Apertus-8B-PDAPT2-1692
-    # Gaperon-8B-PDAPT2-180
-    # Mistral-7B-PDAPT2-540
-    # Apertus-8B-PDAPT2-360
-    # Gaperon-8B-PDAPT2-360
-    # Mistral-7B-PDAPT2-720
-    # Apertus-8B-PDAPT2-720
-    # Gaperon-8B-PDAPT2-540
-    # Mistral-7B-PDAPT2-900
-    # EuroLLM-9B-PDAPT2-180
-    # Gaperon-8B-PDAPT2-720
-    # Qwen3-8B-PDAPT2-1440
-    # EuroLLM-9B-PDAPT2-360
-    # Gaperon-8B-PDAPT2-902
-    # Qwen3-8B-PDAPT2-1628
-    # EuroLLM-9B-PDAPT2-540
-    # Mistral-7B-PDAPT2-1034
-    # Qwen3-8B-PDAPT2-720
-    ##############
-
-    #####################
-    ### PDAPT2 MERGES ###
-    #####################
-    # apertus8-pdapt2-slerp-26-01-20
-    # eurollm-pdapt2-slerp-26-01-08
-    # gaperon8-pdapt2-slerp-26-01-08
-    # mistral7-pdapt2-slerp-26-01-20
-    # qwen8-pdapt2-slerp-26-01-08
-    #####################
-
-    ##########################
-    ### mix-v6 checkpoints ###
-    ##########################
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-360
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-720
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-1080
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-1440
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-1800
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-2160
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-2520
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-2880
-    # EuroLLM-9B_26-02-03-20-12-2040726/checkpoint-3240
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-360
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-720
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-1080
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-1440
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-1800
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-2160
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-2520
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-2880
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-3240
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-3600
-    # Gaperon-1125-8B_26-02-05-11-54-2081619/checkpoint-3960
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-360
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-720
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-1080
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-1440
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-1800
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-2160
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-2520
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-2880
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-3240
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-3600
-    # Mistral-7B-v0.3_26-02-05-11-54-2081616/checkpoint-3960
-    # Qwen3-8B-Base_26-02-05-11-54-2081617/checkpoint-1440
-    # Qwen3-8B-Base_26-02-05-11-54-2081617/checkpoint-2880
-    # Qwen3-8B-Base_26-02-05-11-54-2081617/checkpoint-4320
-    # Qwen3-8B-Base_26-02-05-11-54-2081617/checkpoint-5760
-    ##########################
-
-    ######################################
-    ### com-clean-dedup-v2 checkpoints ###
-    ######################################
-    # Apertus-8B-2509_26-02-20-04-04-222665/checkpoint-540
-    # Apertus-8B-2509_26-02-20-04-04-222665/checkpoint-1080
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-540
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-1080
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-1620
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-2160
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-2700
-    # EuroLLM-9B_26-02-06-13-32-2107601/checkpoint-3240
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-540
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-1080
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-1620
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-2160
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-2700
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-3240
-    # Gaperon-1125-8B_26-02-06-13-32-2107597/checkpoint-3640
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-540
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-1080
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-1620
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-2160
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-2700
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-3240
-    # Mistral-7B-v0.3_26-02-06-13-34-2107602/checkpoint-3780
-    # Qwen3-8B-Base_26-02-06-14-28-2107603/checkpoint-1440
-    # Qwen3-8B-Base_26-02-06-14-28-2107603/checkpoint-2880
-    # Qwen3-8B-Base_26-02-06-14-28-2107603/checkpoint-4320
-    # Qwen3-8B-Base_26-02-06-14-28-2107603/checkpoint-5760
-    ######################################
-
-    #####################################
-    ### research-clean-v2 checkpoints ###
-    #####################################
-    # EuroLLM-9B_26-02-12-08-03-16879/checkpoint-720
-    # EuroLLM-9B_26-02-12-08-03-16879/checkpoint-1440
-    # EuroLLM-9B_26-02-12-08-03-16879/checkpoint-2160
-    # EuroLLM-9B_26-02-12-08-03-16879/checkpoint-2880
-    # EuroLLM-9B_26-02-12-08-03-16879/checkpoint-3224
-    # Gaperon-1125-8B_26-02-12-10-13-16880/checkpoint-720
-    # Gaperon-1125-8B_26-02-12-10-13-16880/checkpoint-1440
-    # Gaperon-1125-8B_26-02-12-10-13-16880/checkpoint-2160
-    # Gaperon-1125-8B_26-02-12-10-13-16880/checkpoint-2880
-    # Gaperon-1125-8B_26-02-12-10-13-16880/checkpoint-3288
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-720
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-1440
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-2160
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-2880
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-3600
-    # Mistral-7B-v0.3_26-02-14-00-21-63097/checkpoint-3776
-    #####################################
 )
 TASK_GROUPS=(
     # med_glianorex
