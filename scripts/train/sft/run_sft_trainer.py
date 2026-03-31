@@ -345,7 +345,7 @@ def main():
                 "iter": i,
                 "params": hp_kwargs,
                 "trainer_metrics": trainer_metrics,
-                "trainer_logs_in": trainer.args.output_dir.name,
+                "trainer_logs_in": Path(trainer.args.output_dir).name,
                 "eval_metrics": eval_metrics
             }
             with intermediate_txt_file_path.open("a" if i else "w") as f:
