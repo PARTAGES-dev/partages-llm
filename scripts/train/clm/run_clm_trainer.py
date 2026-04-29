@@ -77,7 +77,7 @@ def parse_arguments() -> Namespace:
     parser.add_argument("--fsdp-cfg", dest="fsdp_config_path", type=str)
     parser.add_argument("--prec", type=str, choices=tuple(PREC2DTYPE), default="no")
     parser.add_argument("--opt", type=str, default="adamw_torch")
-    parser.add_argument("--sched", type=str, choices=SCHEDULERS, default="constant")
+    parser.add_argument("--schedule", type=str, choices=SCHEDULERS, default="constant")
     parser.add_argument("--pb", action="store_true")
     parser.add_argument("--gcp", dest="gradient_checkpointing", action="store_true")
     parser.add_argument("--acp", dest="activation_checkpointing", action="store_true")
@@ -185,7 +185,7 @@ def setup_training_arguments(args, logger) -> TrainingArguments:
         num_train_epochs=args.epochs,
         max_steps=args.steps,
         optim=args.opt,
-        lr_scheduler_type=args.sched,
+        lr_scheduler_type=args.schedule,
         warmup_ratio=.0,  # better for CPT I think
         save_steps=args.save_steps,
         logging_steps=args.log_steps,

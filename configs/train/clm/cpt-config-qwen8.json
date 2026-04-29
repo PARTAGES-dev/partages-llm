@@ -1,0 +1,13 @@
+{
+    "model_path": "Qwen/Qwen3-8B-Base",
+    "data_path": "YOUR/PATH/HERE",
+    "eval_split_name": "val",
+    "pad_token": "<pad>",
+    "epochs": 4,
+    "batch_size": 1,
+    "grad_acc": 24,
+    "lr": 0.00002,
+    "opt": "adamw_torch",
+    "schedule": "cosine",
+    "seed": 42
+}

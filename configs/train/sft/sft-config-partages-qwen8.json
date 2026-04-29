@@ -1,0 +1,12 @@
+{
+    "model_path": "PARTAGES-dev/PARTAGES-Qwen-8B",
+    "batch_size": 22,
+    "grad_acc": 14,
+    "lr": 0.0005,
+    "schedule": "constant_with_warmup",
+    "rank_dimension": 16,
+    "lora_alpha": 8,
+    "lora_init": "id",
+    "use_dora": false,
+    "target_tokens": false
+}
