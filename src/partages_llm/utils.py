@@ -184,6 +184,8 @@ def config_file_overwrite(parser_func: Callable) -> Callable:
         # if the command line parser has a config argument, read values from that file and
         # use them to overwrite the existing ones
         if config_filepath_arg is not None:
+            if not os.path.is_file(config_filepath_arg):
+                raise FileNotFoundError("Invalid config argument %s" % config_filepath_arg)
             with open(config_filepath_arg) as f:
                 config = json.load(f)
             for k, v in config.items():
